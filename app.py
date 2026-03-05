@@ -26,7 +26,7 @@ def extract_table_from_docm(file, index=1):
         ns = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
 
         tables = root.findall('.//w:tbl', ns)
-        if len(tables) <= index:
+        if len(tables) <= index:0
             return None
 
         tbl = tables[index]
@@ -129,3 +129,4 @@ if uploaded_files:
         st.info("Nenhum dado encontrado para HidroMeter Connect.")
 else:
     st.info("Aguardando arquivos .docm para upload.")
+
