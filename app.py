@@ -3,22 +3,17 @@ import zipfile
 import xml.etree.ElementTree as ET
 import pandas as pd
 import plotly.express as px
-import re
 
 st.set_page_config(page_title="Análise HidroMeter Connect", layout="wide")
 st.title("Análise de Ocorrências - HidroMeter Connect")
 
 uploaded_files = st.file_uploader(
-    "Arraste arquivos .docm aqui",
+    "Arraste arquivos .docm",
     type=["docm"],
     accept_multiple_files=True
 )
 
-def extract_full_text(file):
-    """
-    Extrai TODO o texto do documento Word.
-    Isso evita problemas com palavras quebradas no XML.
-    """
+def extract_docm_content(file):
 
     try:
         with zipfile.ZipFile(file) as docm:
@@ -28,52 +23,80 @@ def extract_full_text(file):
 
         ns = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
 
-        texts = []
-
-        for node in root.findall('.//w:t', ns):
-            if node.text:
-                texts.append(node.text.strip())
-
+        # texto completo
+        texts = [node.text for node in root.findall('.//w:t', ns) if node.text]
         full_text = " ".join(texts)
 
-        return full_text
+        # tabelas
+        tables = []
+        for tbl in root.findall('.//w:tbl', ns):
+
+            table_data = []
+
+            for row in tbl.findall('.//w:tr', ns):
+
+                cells = []
+
+                for cell in row.findall('.//w:tc', ns):
+
+                    cell_text = " ".join(
+                        t.text for t in cell.findall('.//w:t', ns) if t.text
+                    ).strip()
+
+                    cells.append(cell_text)
+
+                if cells:
+                    table_data.append(cells)
+
+            if table_data:
+                tables.append(table_data)
+
+        return full_text, tables
 
     except Exception as e:
         st.error(f"Erro ao processar {file.name}: {e}")
-        return ""
+        return "", []
 
 
-def extract_records(full_text):
-    """
-    Separa registros a partir de palavras chave
-    """
+def extract_records_from_tables(tables):
 
     registros = []
 
-    natureza = None
-    equipamento = None
-    horas = None
+    for table in tables:
 
-    linhas = full_text.split()
+        if len(table) < 2:
+            continue
 
-    buffer = " ".join(linhas)
+        df = pd.DataFrame(table[1:], columns=table[0])
 
-    # procura natureza
-    naturezas = re.findall(r'Natureza\s*[:\-]?\s*([A-Za-z ]+)', buffer)
+        cols = [c.lower() for c in df.columns]
 
-    # procura equipamentos
-    equipamentos = re.findall(r'Equipamento\s*[:\-]?\s*([A-Za-z0-9_\- ]+)', buffer)
+        natureza_col = None
+        equipamento_col = None
+        horas_col = None
 
-    # procura horas
-    horas_list = re.findall(r'Horas\s*Indispon[ií]veis\s*[:\-]?\s*([\d]+[\.,]?[\d]*)', buffer)
+        for i, c in enumerate(cols):
 
-    for i in range(min(len(naturezas), len(equipamentos), len(horas_list))):
+            if "natureza" in c:
+                natureza_col = df.columns[i]
 
-        registros.append({
-            "Natureza": naturezas[i].strip(),
-            "Equipamento": equipamentos[i].strip(),
-            "Horas Indisponíveis": float(horas_list[i].replace(",", "."))
-        })
+            if "equipamento" in c:
+                equipamento_col = df.columns[i]
+
+            if "hora" in c:
+                horas_col = df.columns[i]
+
+        if natureza_col and equipamento_col and horas_col:
+
+            df[horas_col] = pd.to_numeric(df[horas_col], errors='coerce')
+
+            for _, row in df.iterrows():
+
+                registros.append({
+                    "Natureza": row[natureza_col],
+                    "Equipamento": row[equipamento_col],
+                    "Horas Indisponíveis": row[horas_col]
+                })
 
     return registros
 
@@ -84,17 +107,15 @@ if uploaded_files:
 
     for file in uploaded_files:
 
-        texto = extract_full_text(file)
+        full_text, tables = extract_docm_content(file)
 
-        # procura produto em QUALQUER parte do documento
-        if "hidrometer connect" not in texto.lower():
+        if "hidrometer connect" not in full_text.lower():
             st.info(f"{file.name} não contém HidroMeter Connect")
             continue
 
-        registros = extract_records(texto)
+        registros = extract_records_from_tables(tables)
 
-        if registros:
-            todos_registros.extend(registros)
+        todos_registros.extend(registros)
 
     if todos_registros:
 
@@ -103,13 +124,10 @@ if uploaded_files:
         st.subheader("Dados extraídos")
         st.dataframe(df)
 
-        # ocorrências por natureza
         ocorrencias = df.groupby("Natureza").size().reset_index(name="Ocorrências")
 
-        # total horas indisponíveis
         total_horas = df["Horas Indisponíveis"].sum()
 
-        # horas por equipamento
         horas_equip = df.groupby("Equipamento")["Horas Indisponíveis"].sum().reset_index()
 
         st.subheader("Ocorrências por Natureza")
@@ -117,7 +135,7 @@ if uploaded_files:
 
         st.metric("Total de Horas Indisponíveis", round(total_horas, 2))
 
-        st.subheader("Horas Indisponíveis por Equipamento")
+        st.subheader("Horas por Equipamento")
         st.dataframe(horas_equip)
 
         fig1 = px.bar(
@@ -141,7 +159,12 @@ if uploaded_files:
         st.plotly_chart(fig2, use_container_width=True)
 
     else:
+        st.warning("Nenhum registro encontrado nas tabelas.")
+
+else:
+    st.info("Aguardando upload de arquivos.")
         st.warning("Nenhum registro encontrado.")
 
 else:
     st.info("Aguardando upload de arquivos.")
+
