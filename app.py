@@ -16,7 +16,6 @@ uploaded_files = st.file_uploader(
 
 NAMESPACE = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
 
-
 def extract_text_and_tables(file):
 
     text_content = []
@@ -27,12 +26,10 @@ def extract_text_and_tables(file):
 
     root = ET.fromstring(xml_content)
 
-    # extrair texto
     for t in root.findall('.//w:t', NAMESPACE):
         if t.text:
             text_content.append(t.text)
 
-    # extrair tabelas
     for tbl in root.findall('.//w:tbl', NAMESPACE):
 
         table_data = []
@@ -79,7 +76,6 @@ if uploaded_files:
 
             text, tables = extract_text_and_tables(file)
 
-            # procurar HidroMeter Connect em qualquer parte
             if not re.search(r"Hidro\s*Meter\s*Connect", text, re.IGNORECASE):
                 continue
 
@@ -102,10 +98,18 @@ if uploaded_files:
 
         natureza_col = [c for c in df_total.columns if "NATUREZA" in c.upper()][0]
 
-        # remover linhas inválidas
+        # normalização
+        df_total[natureza_col] = (
+            df_total[natureza_col]
+            .astype(str)
+            .str.strip()
+        )
+
+        # filtro removendo "Escolha um item"
         df_total = df_total[
-            (df_total[natureza_col].str.strip() != "") &
-            (df_total[natureza_col].str.lower() != "escolha um item")
+            (~df_total[natureza_col].str.lower().eq("escolha um item")) &
+            (df_total[natureza_col] != "") &
+            (~df_total[natureza_col].isna())
         ]
 
         resumo = (
