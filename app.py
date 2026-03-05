@@ -18,6 +18,7 @@ NAMESPACE = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
 
 
 def extract_text_and_tables(file):
+
     text_content = []
     tables = []
 
@@ -26,21 +27,25 @@ def extract_text_and_tables(file):
 
     root = ET.fromstring(xml_content)
 
-    # texto geral
+    # extrair texto
     for t in root.findall('.//w:t', NAMESPACE):
         if t.text:
             text_content.append(t.text)
 
-    # tabelas
+    # extrair tabelas
     for tbl in root.findall('.//w:tbl', NAMESPACE):
+
         table_data = []
 
         for row in tbl.findall('.//w:tr', NAMESPACE):
+
             cells = []
 
             for cell in row.findall('.//w:tc', NAMESPACE):
+
                 texts = [t.text for t in cell.findall('.//w:t', NAMESPACE) if t.text]
                 cell_text = " ".join(texts).strip()
+
                 cells.append(cell_text)
 
             if cells:
@@ -55,6 +60,7 @@ def extract_text_and_tables(file):
 def find_occurrence_table(tables):
 
     for table in tables:
+
         header = [str(x).upper() for x in table[0]]
 
         if "NATUREZA" in header and "OCORRÊNCIA" in header:
@@ -70,8 +76,10 @@ if uploaded_files:
     for file in uploaded_files:
 
         try:
+
             text, tables = extract_text_and_tables(file)
 
+            # procurar HidroMeter Connect em qualquer parte
             if not re.search(r"Hidro\s*Meter\s*Connect", text, re.IGNORECASE):
                 continue
 
@@ -82,8 +90,6 @@ if uploaded_files:
 
             header = occ_table[0]
             df = pd.DataFrame(occ_table[1:], columns=header)
-
-            df["Arquivo"] = file.name
 
             registros.append(df)
 
@@ -96,6 +102,12 @@ if uploaded_files:
 
         natureza_col = [c for c in df_total.columns if "NATUREZA" in c.upper()][0]
 
+        # remover linhas inválidas
+        df_total = df_total[
+            (df_total[natureza_col].str.strip() != "") &
+            (df_total[natureza_col].str.lower() != "escolha um item")
+        ]
+
         resumo = (
             df_total
             .groupby(natureza_col)
@@ -103,10 +115,7 @@ if uploaded_files:
             .reset_index(name="Total de Ocorrências")
         )
 
-        st.subheader("Tabela de Ocorrências")
-        st.dataframe(df_total)
-
-        st.subheader("Total por Natureza")
+        st.subheader("Total de Ocorrências por Natureza")
         st.dataframe(resumo)
 
         fig = px.bar(
@@ -117,7 +126,11 @@ if uploaded_files:
             color=natureza_col
         )
 
-        fig.update_layout(showlegend=False)
+        fig.update_layout(
+            showlegend=False,
+            xaxis_title="Natureza",
+            yaxis_title="Total de Ocorrências"
+        )
 
         st.plotly_chart(fig, use_container_width=True)
 
