@@ -98,18 +98,20 @@ if uploaded_files:
 
         natureza_col = [c for c in df_total.columns if "NATUREZA" in c.upper()][0]
 
-        # normalização
         df_total[natureza_col] = (
             df_total[natureza_col]
             .astype(str)
             .str.strip()
         )
 
-        # filtro removendo "Escolher um item"
+        # lista de valores a excluir
+        excluir = [
+            "escolha um item",
+            "escolher um item."
+        ]
+
         df_total = df_total[
-            (~df_total[natureza_col].str.lower().eq("Escolher um item.")) &
-            (df_total[natureza_col] != "") &
-            (~df_total[natureza_col].isna())
+            ~df_total[natureza_col].str.lower().isin(excluir)
         ]
 
         resumo = (
@@ -143,5 +145,8 @@ if uploaded_files:
 
 else:
     st.info("Aguardando envio de arquivos Word.")
+else:
+    st.info("Aguardando envio de arquivos Word.")
+
 
 
