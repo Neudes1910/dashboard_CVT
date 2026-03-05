@@ -93,9 +93,11 @@ if uploaded_files:
 
     for file in uploaded_files:
 
-        linhas = extract_text_from_docm(file)
+        texto = extract_full_text(file)
 
-        if not any("HidroMeter Connect" in l for l in linhas):
+if "hidrometer connect" not in texto.lower():
+    st.info(f"{file.name} não contém HidroMeter Connect")
+    continue
             st.info(f"{file.name} não contém HidroMeter Connect")
             continue
 
@@ -152,4 +154,5 @@ if uploaded_files:
 
 else:
     st.info("Aguardando arquivos.")
+
 
