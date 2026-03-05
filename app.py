@@ -14,7 +14,7 @@ uploaded_files = st.file_uploader(
     accept_multiple_files=True
 )
 
-def extract_table_from_docm(file, index=1):
+def extract_table_from_docm(file, index=0):
     """
     Extrai a tabela de índice 'index' do arquivo .docm.
     index=0 para primeira tabela, index=1 para segunda, etc.
@@ -26,7 +26,7 @@ def extract_table_from_docm(file, index=1):
         ns = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
 
         tables = root.findall('.//w:tbl', ns)
-        if len(tables) <= index:0
+        if len(tables) <= index:
             return None
 
         tbl = tables[index]
@@ -129,4 +129,5 @@ if uploaded_files:
         st.info("Nenhum dado encontrado para HidroMeter Connect.")
 else:
     st.info("Aguardando arquivos .docm para upload.")
+
 
