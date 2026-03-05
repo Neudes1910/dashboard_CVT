@@ -5,132 +5,148 @@ import pandas as pd
 import plotly.express as px
 import re
 
-st.set_page_config(page_title="Retrabalho HidroMeter Connect", layout="wide")
-st.title("Retrabalhos e Horas Indisponíveis - HidroMeter Connect")
+st.set_page_config(page_title="Análise HidroMeter Connect", layout="wide")
+st.title("Análise de Ocorrências - HidroMeter Connect")
 
 uploaded_files = st.file_uploader(
-    "Arraste e solte arquivos Word (.docm) aqui",
+    "Arraste os arquivos .docm",
     type=["docm"],
     accept_multiple_files=True
 )
 
-def extract_table_from_docm(file, index=0):
-    """
-    Extrai a tabela de índice 'index' do arquivo .docm.
-    index=0 para primeira tabela, index=1 para segunda, etc.
-    """
+def extract_text_from_docm(file):
+
     try:
         with zipfile.ZipFile(file) as docm:
             xml_content = docm.read("word/document.xml")
+
         root = ET.fromstring(xml_content)
+
         ns = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
 
-        tables = root.findall('.//w:tbl', ns)
-        if len(tables) <= index:
-            return None
+        texts = []
 
-        tbl = tables[index]
-        table_data = []
-        for row in tbl.findall('.//w:tr', ns):
-            cells = []
-            for cell in row.findall('.//w:tc', ns):
-                texts = [t.text for t in cell.findall('.//w:t', ns) if t.text]
-                cell_text = " ".join(texts).strip()
-                cells.append(cell_text)
-            if cells:
-                table_data.append(cells)
-        return table_data
+        for node in root.findall('.//w:t', ns):
+            if node.text:
+                texts.append(node.text.strip())
+
+        return texts
+
     except Exception as e:
-        st.error(f"Erro ao processar {file.name}: {e}")
-        return None
+        st.error(f"Erro ao ler {file.name}: {e}")
+        return []
 
-def is_hidrometer_connect(table_data):
-    """
-    Verifica se a tabela contém o produto HidroMeter Connect.
-    """
-    for row in table_data:
-        for cell in row:
-            if re.match(r"Produto:\s*---\s*HidroMeter Connect", cell, re.IGNORECASE):
-                return True
-    return False
+
+def parse_document(lines):
+
+    registros = []
+
+    natureza = None
+    equipamento = None
+    horas = None
+
+    for line in lines:
+
+        # produto
+        if "HidroMeter Connect" in line:
+            produto = "HidroMeter Connect"
+
+        # natureza
+        if "Natureza" in line:
+            match = re.search(r'Natureza\s*[:\-]?\s*(.*)', line)
+            if match:
+                natureza = match.group(1).strip()
+
+        # equipamento
+        if "Equipamento" in line:
+            match = re.search(r'Equipamento\s*[:\-]?\s*(.*)', line)
+            if match:
+                equipamento = match.group(1).strip()
+
+        # horas indisponíveis
+        if "Horas" in line and "Indispon" in line:
+            match = re.search(r'([\d]+[\.,]?[\d]*)', line)
+            if match:
+                horas = float(match.group(1).replace(",", "."))
+
+        # quando os três campos existem cria registro
+        if natureza and equipamento and horas is not None:
+
+            registros.append({
+                "Natureza": natureza,
+                "Equipamento": equipamento,
+                "Horas Indisponíveis": horas
+            })
+
+            natureza = None
+            equipamento = None
+            horas = None
+
+    return registros
+
 
 if uploaded_files:
-    retrabalho_list = []
+
+    registros_totais = []
 
     for file in uploaded_files:
-        table_data = extract_table_from_docm(file, index=1)  # segunda tabela
-        if not table_data:
-            st.warning(f"Nenhuma tabela encontrada no índice especificado em {file.name}.")
+
+        linhas = extract_text_from_docm(file)
+
+        if not any("HidroMeter Connect" in l for l in linhas):
+            st.info(f"{file.name} não contém HidroMeter Connect")
             continue
 
-        if not is_hidrometer_connect(table_data):
-            st.info(f"O arquivo {file.name} não contém o produto HidroMeter Connect na tabela selecionada.")
-            continue
+        registros = parse_document(linhas)
 
-        # Considera primeira linha como header
-        df = pd.DataFrame(table_data[1:], columns=table_data[0])
+        registros_totais.extend(registros)
 
-        # Verifica se existem colunas necessárias
-        required_cols = ["Natureza", "Horas Indisponíveis", "Equipamento"]
-        if all(col in df.columns for col in required_cols):
-            # Converte Horas Indisponíveis para número
-            df["Horas Indisponíveis"] = pd.to_numeric(df["Horas Indisponíveis"], errors='coerce').fillna(0)
-            retrabalho_list.append(df)
-        else:
-            st.warning(f"As colunas {required_cols} não foram encontradas em {file.name}.")
+    if registros_totais:
 
-    if retrabalho_list:
-        retrabalho_df = pd.concat(retrabalho_list, ignore_index=True)
+        df = pd.DataFrame(registros_totais)
 
-        # Total de ocorrências por natureza
-        ocorrencias_por_natureza = retrabalho_df.groupby("Natureza").size().reset_index(name="Total Ocorrências")
+        st.subheader("Dados extraídos")
+        st.dataframe(df)
 
-        # Total de horas indisponíveis (todas as naturezas)
-        total_horas = retrabalho_df["Horas Indisponíveis"].sum()
+        # ocorrências por natureza
+        ocorrencias = df.groupby("Natureza").size().reset_index(name="Ocorrências")
 
-        # Horas indisponíveis por equipamento
-        horas_por_equipamento = retrabalho_df.groupby("Equipamento")["Horas Indisponíveis"].sum().reset_index()
+        # total horas
+        total_horas = df["Horas Indisponíveis"].sum()
 
-        # Exibição
-        st.subheader("Total de Ocorrências por Natureza")
-        st.dataframe(ocorrencias_por_natureza)
+        # horas por equipamento
+        horas_equip = df.groupby("Equipamento")["Horas Indisponíveis"].sum().reset_index()
 
-        st.subheader("Total de Horas Indisponíveis")
-        st.metric(label="Horas Indisponíveis", value=total_horas)
+        st.subheader("Ocorrências por Natureza")
+        st.dataframe(ocorrencias)
 
-        st.subheader("Horas Indisponíveis por Equipamento")
-        st.dataframe(horas_por_equipamento)
+        st.metric("Total de Horas Indisponíveis", round(total_horas,2))
 
-        # Gráfico de ocorrências por natureza
+        st.subheader("Horas por Equipamento")
+        st.dataframe(horas_equip)
+
         fig1 = px.bar(
-            ocorrencias_por_natureza,
+            ocorrencias,
             x="Natureza",
-            y="Total Ocorrências",
-            text="Total Ocorrências",
-            color="Natureza",
-            title="Ocorrências por Natureza - HidroMeter Connect"
+            y="Ocorrências",
+            text="Ocorrências",
+            title="Ocorrências por Natureza"
         )
-        fig1.update_layout(showlegend=False, xaxis_title="Natureza", yaxis_title="Total Ocorrências")
+
         st.plotly_chart(fig1, use_container_width=True)
 
-        # Gráfico de horas por equipamento
         fig2 = px.bar(
-            horas_por_equipamento,
+            horas_equip,
             x="Equipamento",
             y="Horas Indisponíveis",
             text="Horas Indisponíveis",
-            color="Equipamento",
-            title="Horas Indisponíveis por Equipamento - HidroMeter Connect"
+            title="Horas Indisponíveis por Equipamento"
         )
-        fig2.update_layout(showlegend=False, xaxis_title="Equipamento", yaxis_title="Horas Indisponíveis")
+
         st.plotly_chart(fig2, use_container_width=True)
 
     else:
-        st.info("Nenhum dado encontrado para HidroMeter Connect.")
+        st.warning("Nenhum registro encontrado.")
+
 else:
-    st.info("Aguardando arquivos .docm para upload.")
-
-
-
-
-
+    st.info("Aguardando arquivos.")
