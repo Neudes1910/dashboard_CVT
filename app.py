@@ -14,53 +14,41 @@ uploaded_files = st.file_uploader(
     accept_multiple_files=True
 )
 
-def extract_full_text(file):
+def extract_tables(file):
 
-    try:
-        with zipfile.ZipFile(file) as docm:
-            xml_content = docm.read("word/document.xml")
+    with zipfile.ZipFile(file) as docm:
+        xml_content = docm.read("word/document.xml")
 
-        root = ET.fromstring(xml_content)
+    root = ET.fromstring(xml_content)
 
-        ns = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
+    ns = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
 
-        texts = []
+    tables = []
 
-        for node in root.findall('.//w:t', ns):
-            if node.text:
-                texts.append(node.text)
+    for tbl in root.findall('.//w:tbl', ns):
 
-        full_text = " ".join(texts)
+        table_data = []
 
-        # normaliza espaços
-        full_text = re.sub(r'\s+', ' ', full_text)
+        for row in tbl.findall('.//w:tr', ns):
 
-        return full_text
+            cells = []
 
-    except Exception as e:
-        st.error(f"Erro ao ler {file.name}: {e}")
-        return ""
+            for cell in row.findall('.//w:tc', ns):
 
+                texts = [
+                    t.text for t in cell.findall('.//w:t', ns)
+                    if t.text
+                ]
 
-def extract_fields(text):
+                cells.append(" ".join(texts).strip())
 
-    natureza = None
-    equipamento = None
-    horas = None
+            if cells:
+                table_data.append(cells)
 
-    n = re.search(r'Natureza\s*:\s*([^\n\r]+)', text, re.IGNORECASE)
-    if n:
-        natureza = n.group(1).strip()
+        if table_data:
+            tables.append(table_data)
 
-    e = re.search(r'Equipamento\s*:\s*([^\n\r]+)', text, re.IGNORECASE)
-    if e:
-        equipamento = e.group(1).strip()
-
-    h = re.search(r'Horas\s*Indispon[ií]veis\s*:\s*([\d\.,]+)', text, re.IGNORECASE)
-    if h:
-        horas = float(h.group(1).replace(",", "."))
-
-    return natureza, equipamento, horas
+    return tables
 
 
 if uploaded_files:
@@ -69,21 +57,44 @@ if uploaded_files:
 
     for file in uploaded_files:
 
-        texto = extract_full_text(file)
+        tables = extract_tables(file)
 
-        if not re.search(r'hidrometer\s+connect', texto, re.IGNORECASE):
+        campos = {}
+
+        # transforma tabela em dicionário campo -> valor
+        for table in tables:
+
+            for row in table:
+
+                if len(row) >= 2:
+
+                    chave = re.sub(r'\s+', ' ', row[0]).strip().lower()
+                    valor = re.sub(r'\s+', ' ', row[1]).strip()
+
+                    campos[chave] = valor
+
+        # verifica produto
+        produto = campos.get("produto", "").lower()
+
+        if "hidrometer" not in produto:
             continue
 
-        natureza, equipamento, horas = extract_fields(texto)
+        natureza = campos.get("natureza")
+        equipamento = campos.get("equipamento")
+        horas = campos.get("horas indisponíveis")
 
-        if natureza or equipamento or horas:
+        if horas:
+            try:
+                horas = float(horas.replace(",", "."))
+            except:
+                horas = None
 
-            registros.append({
-                "Arquivo": file.name,
-                "Natureza": natureza,
-                "Equipamento": equipamento,
-                "Horas Indisponíveis": horas
-            })
+        registros.append({
+            "Arquivo": file.name,
+            "Natureza": natureza,
+            "Equipamento": equipamento,
+            "Horas Indisponíveis": horas
+        })
 
     if registros:
 
@@ -103,15 +114,14 @@ if uploaded_files:
 
         st.metric("Total de Horas Indisponíveis", round(total_horas, 2))
 
-        st.subheader("Horas Indisponíveis por Equipamento")
+        st.subheader("Horas por Equipamento")
         st.dataframe(horas_equip)
 
         fig1 = px.bar(
             ocorrencias,
             x="Natureza",
             y="Ocorrências",
-            text="Ocorrências",
-            title="Ocorrências por Natureza"
+            text="Ocorrências"
         )
 
         st.plotly_chart(fig1, use_container_width=True)
@@ -120,14 +130,15 @@ if uploaded_files:
             horas_equip,
             x="Equipamento",
             y="Horas Indisponíveis",
-            text="Horas Indisponíveis",
-            title="Horas por Equipamento"
+            text="Horas Indisponíveis"
         )
 
         st.plotly_chart(fig2, use_container_width=True)
 
     else:
-        st.warning("Nenhum registro com Natureza/Equipamento/Horas foi encontrado.")
+
+        st.warning("Nenhum registro encontrado nos arquivos.")
 
 else:
+
     st.info("Aguardando upload de arquivos.")
