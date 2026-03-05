@@ -5,11 +5,11 @@ import pandas as pd
 import plotly.express as px
 import re
 
-st.set_page_config(page_title="Retrabalhos HidroMeter", layout="wide")
+st.set_page_config(page_title="Dashboard HidroMeter", layout="wide")
 st.title("Análise de Ocorrências - HidroMeter Connect")
 
 uploaded_files = st.file_uploader(
-    "Envie arquivos Word",
+    "Envie os relatórios Word",
     type=["docx", "docm", "dotm"],
     accept_multiple_files=True
 )
@@ -67,9 +67,37 @@ def find_occurrence_table(tables):
     return None
 
 
+def find_downtime_table(tables):
+
+    for table in tables:
+
+        header = [str(x).upper() for x in table[0]]
+
+        if "POR QUANTO TEMPO?" in header and "QUAL EQUIPAMENTO?" in header:
+            return table
+
+    return None
+
+
+def converter_horas(valor):
+
+    if valor is None:
+        return 0
+
+    texto = str(valor).lower()
+
+    match = re.search(r'(\d+[.,]?\d*)', texto)
+
+    if match:
+        return float(match.group(1).replace(",", "."))
+
+    return 0
+
+
 if uploaded_files:
 
-    registros = []
+    ocorrencias = []
+    horas_registros = []
 
     for file in uploaded_files:
 
@@ -82,29 +110,24 @@ if uploaded_files:
 
             occ_table = find_occurrence_table(tables)
 
-            if occ_table is None:
-                continue
+            if occ_table:
+                df_occ = pd.DataFrame(occ_table[1:], columns=occ_table[0])
+                ocorrencias.append(df_occ)
 
-            header = occ_table[0]
-            df = pd.DataFrame(occ_table[1:], columns=header)
+            downtime_table = find_downtime_table(tables)
 
-            registros.append(df)
+            if downtime_table:
+                df_down = pd.DataFrame(downtime_table[1:], columns=downtime_table[0])
+                horas_registros.append(df_down)
 
         except Exception as e:
             st.warning(f"Erro ao processar {file.name}: {e}")
 
-    if len(registros) > 0:
+    if ocorrencias:
 
-        df_total = pd.concat(registros, ignore_index=True)
+        df_total = pd.concat(ocorrencias, ignore_index=True)
 
         natureza_col = [c for c in df_total.columns if "NATUREZA" in c.upper()][0]
-
-        # encontrar coluna de horas automaticamente
-        horas_col = None
-        for c in df_total.columns:
-            if "hora" in c.lower() or "indispon" in c.lower():
-                horas_col = c
-                break
 
         df_total[natureza_col] = df_total[natureza_col].astype(str).str.strip()
 
@@ -122,7 +145,6 @@ if uploaded_files:
         )
 
         st.subheader("Total de Ocorrências por Natureza")
-        st.dataframe(resumo)
 
         fig = px.bar(
             resumo,
@@ -132,55 +154,68 @@ if uploaded_files:
             color=natureza_col
         )
 
-        fig.update_layout(
-            showlegend=False,
-            xaxis_title="Natureza",
-            yaxis_title="Total de Ocorrências"
-        )
+        fig.update_layout(showlegend=False)
 
         st.plotly_chart(fig, use_container_width=True)
 
-        # --- HORAS INDISPONÍVEIS ---
+    if horas_registros:
 
-        if horas_col:
+        df_horas = pd.concat(horas_registros, ignore_index=True)
 
-            df_total[horas_col] = pd.to_numeric(df_total[horas_col], errors="coerce").fillna(0)
+        col_tempo = [c for c in df_horas.columns if "TEMPO" in c.upper()][0]
+        col_equip = [c for c in df_horas.columns if "EQUIPAMENTO" in c.upper()][0]
+        col_nat = [c for c in df_horas.columns if "NATUREZA" in c.upper()][0]
 
-            total_horas = df_total[horas_col].sum()
+        df_horas["HORAS"] = df_horas[col_tempo].apply(converter_horas)
 
-            st.subheader("Total de Horas Indisponíveis")
-            st.metric("Horas Totais", round(total_horas, 2))
+        df_horas = df_horas[
+            ~df_horas[col_nat].str.lower().isin(["escolha um item", "escolher um item."])
+        ]
 
-            horas_natureza = (
-                df_total
-                .groupby(natureza_col)[horas_col]
-                .sum()
-                .reset_index()
-            )
+        total_horas = df_horas["HORAS"].sum()
 
-            fig2 = px.bar(
-                horas_natureza,
-                x=natureza_col,
-                y=horas_col,
-                text=horas_col,
-                color=natureza_col,
-                title="Horas Indisponíveis por Natureza"
-            )
+        st.subheader("Horas Indisponíveis Totais")
+        st.metric("Total de Horas", round(total_horas, 2))
 
-            fig2.update_layout(
-                showlegend=False,
-                xaxis_title="Natureza",
-                yaxis_title="Horas Indisponíveis"
-            )
+        horas_nat = (
+            df_horas
+            .groupby(col_nat)["HORAS"]
+            .sum()
+            .reset_index()
+        )
 
-            st.plotly_chart(fig2, use_container_width=True)
+        fig2 = px.bar(
+            horas_nat,
+            x=col_nat,
+            y="HORAS",
+            text="HORAS",
+            color=col_nat,
+            title="Horas Indisponíveis por Natureza"
+        )
 
-        else:
+        fig2.update_layout(showlegend=False)
 
-            st.warning("Nenhuma coluna de horas indisponíveis foi encontrada nos relatórios.")
+        st.plotly_chart(fig2, use_container_width=True)
 
-    else:
-        st.warning("Nenhuma ocorrência encontrada para HidroMeter Connect.")
+        horas_eq = (
+            df_horas
+            .groupby(col_equip)["HORAS"]
+            .sum()
+            .reset_index()
+        )
+
+        fig3 = px.bar(
+            horas_eq,
+            x=col_equip,
+            y="HORAS",
+            text="HORAS",
+            color=col_equip,
+            title="Horas Indisponíveis por Equipamento"
+        )
+
+        fig3.update_layout(showlegend=False)
+
+        st.plotly_chart(fig3, use_container_width=True)
 
 else:
-    st.info("Aguardando envio de arquivos Word.")
+    st.info("Aguardando envio dos relatórios.")
