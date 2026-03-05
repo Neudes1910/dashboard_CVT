@@ -50,7 +50,7 @@ def is_hidrometer_connect(table_data):
     """
     for row in table_data:
         for cell in row:
-            if re.match(r"Produto\s*---\s*HidroMeter Connect", cell, re.IGNORECASE):
+            if re.match(r"Produto:\s*---\s*HidroMeter Connect", cell, re.IGNORECASE):
                 return True
     return False
 
@@ -129,5 +129,6 @@ if uploaded_files:
         st.info("Nenhum dado encontrado para HidroMeter Connect.")
 else:
     st.info("Aguardando arquivos .docm para upload.")
+
 
 
