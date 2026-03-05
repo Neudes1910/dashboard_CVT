@@ -1,66 +1,170 @@
 import streamlit as st
-import zipfile
-import xml.etree.ElementTree as ET
 import pandas as pd
+from docx import Document
+from collections import defaultdict
 
-st.set_page_config(layout="wide")
-st.title("Diagnóstico de Estrutura DOCM")
+st.title("Análise de Ocorrências - HidroMeter Connect")
 
-uploaded_files = st.file_uploader(
-    "Envie arquivos .docm",
-    type=["docm"],
+arquivos = st.file_uploader(
+    "Envie os arquivos .docx",
+    type="docx",
     accept_multiple_files=True
 )
 
-def extract_tables(file):
+def texto_documento(doc):
+    textos = []
 
-    with zipfile.ZipFile(file) as docm:
-        xml_content = docm.read("word/document.xml")
+    for p in doc.paragraphs:
+        textos.append(p.text)
 
-    root = ET.fromstring(xml_content)
+    for tabela in doc.tables:
+        for linha in tabela.rows:
+            for celula in linha.cells:
+                textos.append(celula.text)
 
-    ns = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
-
-    tables = []
-
-    for tbl in root.findall('.//w:tbl', ns):
-
-        table_data = []
-
-        for row in tbl.findall('.//w:tr', ns):
-
-            row_data = []
-
-            for cell in row.findall('.//w:tc', ns):
-
-                texts = [
-                    t.text for t in cell.findall('.//w:t', ns)
-                    if t.text
-                ]
-
-                row_data.append(" ".join(texts))
-
-            table_data.append(row_data)
-
-        tables.append(table_data)
-
-    return tables
+    return " ".join(textos).lower()
 
 
-if uploaded_files:
+def encontrar_tabela_ocorrencias(doc):
 
-    for file in uploaded_files:
+    for tabela in doc.tables:
 
-        st.header(file.name)
+        cabecalho = [c.text.strip().lower() for c in tabela.rows[0].cells]
 
-        tables = extract_tables(file)
+        if "natureza" in cabecalho and "ocorrência" in cabecalho:
+            return tabela
 
-        st.write(f"Tabelas encontradas: {len(tables)}")
+    return None
 
-        for i, table in enumerate(tables):
 
-            st.subheader(f"Tabela {i}")
+def encontrar_tabela_horas(doc):
 
-            df = pd.DataFrame(table)
+    for tabela in doc.tables:
 
-            st.dataframe(df)
+        cabecalho = [c.text.strip().lower() for c in tabela.rows[0].cells]
+
+        if "equipamento" in cabecalho and "hora" in " ".join(cabecalho):
+            return tabela
+
+    return None
+
+
+def processar_doc(doc):
+
+    natureza_contagem = defaultdict(int)
+    horas_equipamento = defaultdict(float)
+    total_horas = 0
+
+    tabela_oc = encontrar_tabela_ocorrencias(doc)
+
+    if tabela_oc:
+
+        cab = [c.text.strip().lower() for c in tabela_oc.rows[0].cells]
+
+        idx_nat = cab.index("natureza")
+
+        for linha in tabela_oc.rows[1:]:
+
+            natureza = linha.cells[idx_nat].text.strip()
+
+            if natureza:
+                natureza_contagem[natureza] += 1
+
+
+    tabela_hr = encontrar_tabela_horas(doc)
+
+    if tabela_hr:
+
+        cab = [c.text.strip().lower() for c in tabela_hr.rows[0].cells]
+
+        idx_eq = cab.index("equipamento")
+
+        idx_hr = None
+
+        for i, c in enumerate(cab):
+            if "hora" in c:
+                idx_hr = i
+
+        if idx_hr is not None:
+
+            for linha in tabela_hr.rows[1:]:
+
+                equipamento = linha.cells[idx_eq].text.strip()
+
+                horas = linha.cells[idx_hr].text.replace(",", ".").strip()
+
+                try:
+                    horas = float(horas)
+                except:
+                    horas = 0
+
+                horas_equipamento[equipamento] += horas
+                total_horas += horas
+
+    return natureza_contagem, horas_equipamento, total_horas
+
+
+if arquivos:
+
+    total_natureza = defaultdict(int)
+    total_horas_equip = defaultdict(float)
+    horas_total = 0
+
+    arquivos_processados = 0
+
+    for arquivo in arquivos:
+
+        doc = Document(arquivo)
+
+        texto = texto_documento(doc)
+
+        if "hidrometer connect" in texto:
+
+            nat, eq, hrs = processar_doc(doc)
+
+            for k, v in nat.items():
+                total_natureza[k] += v
+
+            for k, v in eq.items():
+                total_horas_equip[k] += v
+
+            horas_total += hrs
+
+            arquivos_processados += 1
+
+
+    st.subheader("Arquivos analisados")
+    st.write(arquivos_processados)
+
+    st.subheader("Ocorrências por Natureza")
+
+    if total_natureza:
+
+        df_nat = pd.DataFrame(
+            total_natureza.items(),
+            columns=["Natureza", "Total de Ocorrências"]
+        )
+
+        st.dataframe(df_nat)
+
+    else:
+        st.write("Nenhuma ocorrência encontrada.")
+
+
+    st.subheader("Horas indisponíveis por Equipamento")
+
+    if total_horas_equip:
+
+        df_eq = pd.DataFrame(
+            total_horas_equip.items(),
+            columns=["Equipamento", "Horas Indisponíveis"]
+        )
+
+        st.dataframe(df_eq)
+
+    else:
+        st.write("Nenhuma hora registrada.")
+
+
+    st.subheader("Total de Horas Indisponíveis")
+    st.write(horas_total)
