@@ -3,6 +3,7 @@ import zipfile
 import xml.etree.ElementTree as ET
 import pandas as pd
 import plotly.express as px
+import re
 
 st.set_page_config(page_title="Retrabalho HidroMeter Connect", layout="wide")
 st.title("Total de Retrabalhos por Natureza - HidroMeter Connect")
@@ -14,7 +15,7 @@ uploaded_files = st.file_uploader(
 )
 
 def extract_first_table_from_docm(file):
-    """Extrai apenas a primeira tabela do arquivo .docm"""
+    """Extrai a primeira tabela do arquivo .docm"""
     try:
         with zipfile.ZipFile(file) as docm:
             xml_content = docm.read("word/document.xml")
@@ -39,6 +40,14 @@ def extract_first_table_from_docm(file):
         st.error(f"Erro ao processar {file.name}: {e}")
         return None
 
+def is_hidrometer_connect(table_data):
+    """Verifica se a primeira tabela se refere ao produto HidroMeter Connect"""
+    for row in table_data:
+        for cell in row:
+            if re.match(r"Produto\s*---\s*HidroMeter Connect", cell, re.IGNORECASE):
+                return True
+    return False
+
 if uploaded_files:
     retrabalho_list = []
 
@@ -48,23 +57,24 @@ if uploaded_files:
             st.warning(f"Nenhuma tabela encontrada em {file.name}.")
             continue
 
-        df = pd.DataFrame(table_data[1:], columns=table_data[0])  # primeira linha como header
+        if not is_hidrometer_connect(table_data):
+            st.info(f"O arquivo {file.name} não contém o produto HidroMeter Connect na primeira tabela.")
+            continue
 
-        # Filtra apenas o produto HidroMeter Connect
-        if "Produto" in df.columns:
-            df_produto = df[df["Produto"].str.strip() == "HidroMeter Connect"]
-            if "Natureza" in df_produto.columns and "Quantidade" in df_produto.columns:
-                df_produto["Quantidade"] = pd.to_numeric(df_produto["Quantidade"], errors='coerce').fillna(0)
-                retrabalho_list.append(df_produto)
-            else:
-                st.warning(f"As colunas 'Natureza' ou 'Quantidade' não foram encontradas em {file.name}.")
+        # Considera a primeira linha como header
+        df = pd.DataFrame(table_data[1:], columns=table_data[0])
+
+        # Verifica se existe coluna "Natureza" e "Quantidade"
+        if "Natureza" in df.columns and "Quantidade" in df.columns:
+            df["Quantidade"] = pd.to_numeric(df["Quantidade"], errors='coerce').fillna(0)
+            retrabalho_list.append(df)
         else:
-            st.warning(f"A coluna 'Produto' não foi encontrada em {file.name}.")
+            st.warning(f"As colunas 'Natureza' ou 'Quantidade' não foram encontradas em {file.name}.")
 
     if retrabalho_list:
         retrabalho_df = pd.concat(retrabalho_list, ignore_index=True)
 
-        # Agrupa por natureza e soma a quantidade
+        # Agrupa por natureza
         summary = retrabalho_df.groupby("Natureza")["Quantidade"].sum().reset_index()
 
         st.subheader("Total de Retrabalhos por Natureza - HidroMeter Connect")
