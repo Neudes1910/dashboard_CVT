@@ -14,7 +14,7 @@ uploaded_files = st.file_uploader(
     accept_multiple_files=True
 )
 
-def extract_text_from_docm(file):
+def extract_full_text(file):
 
     try:
         with zipfile.ZipFile(file) as docm:
@@ -28,13 +28,15 @@ def extract_text_from_docm(file):
 
         for node in root.findall('.//w:t', ns):
             if node.text:
-                texts.append(node.text.strip())
+                texts.append(node.text)
 
-        return texts
+        full_text = " ".join(texts)
+
+        return full_text
 
     except Exception as e:
         st.error(f"Erro ao ler {file.name}: {e}")
-        return []
+        return ""
 
 
 def parse_document(lines):
@@ -150,3 +152,4 @@ if uploaded_files:
 
 else:
     st.info("Aguardando arquivos.")
+
