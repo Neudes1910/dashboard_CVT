@@ -1,15 +1,15 @@
 import streamlit as st
+from docx import Document
 import pandas as pd
 import plotly.express as px
+import re
 
-st.set_page_config(page_title="Contagem de Arquivos por Projeto", layout="wide")
+st.set_page_config(page_title="Contagem de Arquivos Word (.docm)", layout="wide")
+st.title("Dashboard de Contagem de Arquivos Word com Macro")
 
-st.title("Dashboard de Contagem de Arquivos")
-
-# Upload de múltiplos arquivos
 uploaded_files = st.file_uploader(
-    "Arraste e solte os arquivos aqui",
-    type=["csv", "xlsx"],
+    "Arraste e solte arquivos Word (.docm) aqui",
+    type=["docm"],
     accept_multiple_files=True
 )
 
@@ -18,24 +18,26 @@ if uploaded_files:
 
     for file in uploaded_files:
         try:
-            if file.name.endswith(".csv"):
-                df = pd.read_csv(file)
-            else:
-                df = pd.read_excel(file)
+            doc = Document(file)
         except Exception as e:
-            st.error(f"Erro ao ler o arquivo {file.name}: {e}")
+            st.error(f"Erro ao abrir {file.name}: {e}")
             continue
 
-        # Aqui assumimos que há uma coluna 'Projeto' e 'Quantidade'
-        if "Projeto" not in df.columns or "Quantidade" not in df.columns:
-            st.warning(f"O arquivo {file.name} não possui as colunas necessárias: 'Projeto' e 'Quantidade'.")
+        # Extrai texto de cada parágrafo
+        text = "\n".join([p.text for p in doc.paragraphs])
+
+        # Regex simples para extrair Projeto e Quantidade
+        matches = re.findall(r"Projeto:\s*(.+)\nQuantidade:\s*(\d+)", text)
+        if not matches:
+            st.warning(f"Nenhum dado encontrado no arquivo {file.name}.")
             continue
 
+        df = pd.DataFrame(matches, columns=["Projeto", "Quantidade"])
+        df["Quantidade"] = df["Quantidade"].astype(int)
         all_data.append(df)
 
     if all_data:
         data = pd.concat(all_data, ignore_index=True)
-
         st.subheader("Dados Consolidados")
         st.dataframe(data)
 
@@ -47,4 +49,4 @@ if uploaded_files:
         fig.update_layout(showlegend=False, xaxis_title="Projeto", yaxis_title="Total de Itens")
         st.plotly_chart(fig, use_container_width=True)
 else:
-    st.info("Aguardando arquivos para upload.")
+    st.info("Aguardando arquivos .docm para upload.")
