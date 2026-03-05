@@ -27,12 +27,10 @@ def extract_text_and_tables(file):
 
     root = ET.fromstring(xml_content)
 
-    # extrair texto
     for t in root.findall('.//w:t', NAMESPACE):
         if t.text:
             text_content.append(t.text)
 
-    # extrair tabelas
     for tbl in root.findall('.//w:tbl', NAMESPACE):
 
         table_data = []
@@ -79,7 +77,6 @@ if uploaded_files:
 
             text, tables = extract_text_and_tables(file)
 
-            # verifica se é HidroMeter Connect
             if not re.search(r"Hidro\s*Meter\s*Connect", text, re.IGNORECASE):
                 continue
 
@@ -102,13 +99,15 @@ if uploaded_files:
 
         natureza_col = [c for c in df_total.columns if "NATUREZA" in c.upper()][0]
 
-        df_total[natureza_col] = (
-            df_total[natureza_col]
-            .astype(str)
-            .str.strip()
-        )
+        # encontrar coluna de horas automaticamente
+        horas_col = None
+        for c in df_total.columns:
+            if "hora" in c.lower() or "indispon" in c.lower():
+                horas_col = c
+                break
 
-        # valores que devem ser removidos
+        df_total[natureza_col] = df_total[natureza_col].astype(str).str.strip()
+
         excluir = ["escolha um item", "escolher um item."]
 
         df_total = df_total[
@@ -141,9 +140,47 @@ if uploaded_files:
 
         st.plotly_chart(fig, use_container_width=True)
 
+        # --- HORAS INDISPONÍVEIS ---
+
+        if horas_col:
+
+            df_total[horas_col] = pd.to_numeric(df_total[horas_col], errors="coerce").fillna(0)
+
+            total_horas = df_total[horas_col].sum()
+
+            st.subheader("Total de Horas Indisponíveis")
+            st.metric("Horas Totais", round(total_horas, 2))
+
+            horas_natureza = (
+                df_total
+                .groupby(natureza_col)[horas_col]
+                .sum()
+                .reset_index()
+            )
+
+            fig2 = px.bar(
+                horas_natureza,
+                x=natureza_col,
+                y=horas_col,
+                text=horas_col,
+                color=natureza_col,
+                title="Horas Indisponíveis por Natureza"
+            )
+
+            fig2.update_layout(
+                showlegend=False,
+                xaxis_title="Natureza",
+                yaxis_title="Horas Indisponíveis"
+            )
+
+            st.plotly_chart(fig2, use_container_width=True)
+
+        else:
+
+            st.warning("Nenhuma coluna de horas indisponíveis foi encontrada nos relatórios.")
+
     else:
         st.warning("Nenhuma ocorrência encontrada para HidroMeter Connect.")
 
 else:
     st.info("Aguardando envio de arquivos Word.")
-
