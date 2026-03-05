@@ -16,6 +16,7 @@ uploaded_files = st.file_uploader(
 
 NAMESPACE = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
 
+
 def extract_text_and_tables(file):
 
     text_content = []
@@ -26,10 +27,12 @@ def extract_text_and_tables(file):
 
     root = ET.fromstring(xml_content)
 
+    # extrair texto
     for t in root.findall('.//w:t', NAMESPACE):
         if t.text:
             text_content.append(t.text)
 
+    # extrair tabelas
     for tbl in root.findall('.//w:tbl', NAMESPACE):
 
         table_data = []
@@ -76,12 +79,13 @@ if uploaded_files:
 
             text, tables = extract_text_and_tables(file)
 
+            # verifica se é HidroMeter Connect
             if not re.search(r"Hidro\s*Meter\s*Connect", text, re.IGNORECASE):
                 continue
 
             occ_table = find_occurrence_table(tables)
 
-            if not occ_table:
+            if occ_table is None:
                 continue
 
             header = occ_table[0]
@@ -92,7 +96,7 @@ if uploaded_files:
         except Exception as e:
             st.warning(f"Erro ao processar {file.name}: {e}")
 
-    if registros:
+    if len(registros) > 0:
 
         df_total = pd.concat(registros, ignore_index=True)
 
@@ -104,11 +108,8 @@ if uploaded_files:
             .str.strip()
         )
 
-        # lista de valores a excluir
-        excluir = [
-            "escolha um item",
-            "escolher um item."
-        ]
+        # valores que devem ser removidos
+        excluir = ["escolha um item", "escolher um item."]
 
         df_total = df_total[
             ~df_total[natureza_col].str.lower().isin(excluir)
@@ -145,8 +146,4 @@ if uploaded_files:
 
 else:
     st.info("Aguardando envio de arquivos Word.")
-else:
-    st.info("Aguardando envio de arquivos Word.")
-
-
 
