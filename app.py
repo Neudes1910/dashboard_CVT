@@ -107,7 +107,7 @@ if uploaded_files:
 
         # filtro removendo "Escolher um item"
         df_total = df_total[
-            (~df_total[natureza_col].str.lower().eq("escolher um item")) &
+            (~df_total[natureza_col].str.lower().eq("Escolher um item.")) &
             (df_total[natureza_col] != "") &
             (~df_total[natureza_col].isna())
         ]
@@ -143,4 +143,5 @@ if uploaded_files:
 
 else:
     st.info("Aguardando envio de arquivos Word.")
+
 
