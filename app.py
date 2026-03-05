@@ -6,7 +6,7 @@ import plotly.express as px
 import re
 
 st.set_page_config(page_title="Retrabalho HidroMeter Connect", layout="wide")
-st.title("Total de Retrabalhos por Natureza - HidroMeter Connect")
+st.title("Retrabalhos e Horas Indisponíveis - HidroMeter Connect")
 
 uploaded_files = st.file_uploader(
     "Arraste e solte arquivos Word (.docm) aqui",
@@ -14,7 +14,7 @@ uploaded_files = st.file_uploader(
     accept_multiple_files=True
 )
 
-def extract_table_from_docm(file, index=0):
+def extract_table_from_docm(file, index=1):
     """
     Extrai a tabela de índice 'index' do arquivo .docm.
     index=0 para primeira tabela, index=1 para segunda, etc.
@@ -27,7 +27,7 @@ def extract_table_from_docm(file, index=0):
 
         tables = root.findall('.//w:tbl', ns)
         if len(tables) <= index:
-            return None  # não existe tabela no índice solicitado
+            return None
 
         tbl = tables[index]
         table_data = []
@@ -47,7 +47,6 @@ def extract_table_from_docm(file, index=0):
 def is_hidrometer_connect(table_data):
     """
     Verifica se a tabela contém o produto HidroMeter Connect.
-    Procura linha do tipo: Produto --- HidroMeter Connect
     """
     for row in table_data:
         for cell in row:
@@ -59,7 +58,6 @@ if uploaded_files:
     retrabalho_list = []
 
     for file in uploaded_files:
-        # Altere index=1 se o produto estiver na segunda tabela
         table_data = extract_table_from_docm(file, index=1)  # segunda tabela
         if not table_data:
             st.warning(f"Nenhuma tabela encontrada no índice especificado em {file.name}.")
@@ -72,34 +70,67 @@ if uploaded_files:
         # Considera primeira linha como header
         df = pd.DataFrame(table_data[1:], columns=table_data[0])
 
-        # Verifica se existem colunas "Natureza" e "Quantidade"
-        if "Natureza" in df.columns and "Quantidade" in df.columns:
-            df["Quantidade"] = pd.to_numeric(df["Quantidade"], errors='coerce').fillna(0)
+        # Verifica se existem colunas necessárias
+        required_cols = ["Natureza", "Horas Indisponíveis", "Equipamento"]
+        if all(col in df.columns for col in required_cols):
+            # Converte Horas Indisponíveis para número
+            df["Horas Indisponíveis"] = pd.to_numeric(df["Horas Indisponíveis"], errors='coerce').fillna(0)
             retrabalho_list.append(df)
         else:
-            st.warning(f"As colunas 'Natureza' ou 'Quantidade' não foram encontradas em {file.name}.")
+            st.warning(f"As colunas {required_cols} não foram encontradas em {file.name}.")
 
     if retrabalho_list:
         retrabalho_df = pd.concat(retrabalho_list, ignore_index=True)
 
-        # Agrupa por natureza
-        summary = retrabalho_df.groupby("Natureza")["Quantidade"].sum().reset_index()
+        # Total de ocorrências por natureza
+        ocorrencias_por_natureza = retrabalho_df.groupby("Natureza").size().reset_index(name="Total Ocorrências")
 
-        st.subheader("Total de Retrabalhos por Natureza - HidroMeter Connect")
-        st.dataframe(summary)
+        # Total de horas indisponíveis (todas as naturezas)
+        total_horas = retrabalho_df["Horas Indisponíveis"].sum()
 
-        fig = px.bar(
-            summary,
+        # Horas indisponíveis por equipamento
+        horas_por_equipamento = retrabalho_df.groupby("Equipamento")["Horas Indisponíveis"].sum().reset_index()
+
+        # Exibição
+        st.subheader("Total de Ocorrências por Natureza")
+        st.dataframe(ocorrencias_por_natureza)
+
+        st.subheader("Total de Horas Indisponíveis")
+        st.metric(label="Horas Indisponíveis", value=total_horas)
+
+        st.subheader("Horas Indisponíveis por Equipamento")
+        st.dataframe(horas_por_equipamento)
+
+        # Gráfico de ocorrências por natureza
+        fig1 = px.bar(
+            ocorrencias_por_natureza,
             x="Natureza",
-            y="Quantidade",
-            text="Quantidade",
+            y="Total Ocorrências",
+            text="Total Ocorrências",
             color="Natureza",
-            title="Retrabalhos por Natureza - HidroMeter Connect"
+            title="Ocorrências por Natureza - HidroMeter Connect"
         )
-        fig.update_layout(showlegend=False, xaxis_title="Natureza", yaxis_title="Total de Retrabalhos")
-        st.plotly_chart(fig, use_container_width=True)
+        fig1.update_layout(showlegend=False, xaxis_title="Natureza", yaxis_title="Total Ocorrências")
+        st.plotly_chart(fig1, use_container_width=True)
+
+        # Gráfico de horas por equipamento
+        fig2 = px.bar(
+            horas_por_equipamento,
+            x="Equipamento",
+            y="Horas Indisponíveis",
+            text="Horas Indisponíveis",
+            color="Equipamento",
+            title="Horas Indisponíveis por Equipamento - HidroMeter Connect"
+        )
+        fig2.update_layout(showlegend=False, xaxis_title="Equipamento", yaxis_title="Horas Indisponíveis")
+        st.plotly_chart(fig2, use_container_width=True)
+
     else:
+        st.info("Nenhum dado encontrado para HidroMeter Connect.")
+else:
+    st.info("Aguardando arquivos .docm para upload.")
         st.info("Nenhum retrabalho encontrado para HidroMeter Connect.")
 else:
     st.info("Aguardando arquivos .docm para upload.")
+
 
