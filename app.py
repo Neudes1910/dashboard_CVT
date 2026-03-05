@@ -2,169 +2,65 @@ import streamlit as st
 import zipfile
 import xml.etree.ElementTree as ET
 import pandas as pd
-import plotly.express as px
 
-st.set_page_config(page_title="Análise HidroMeter Connect", layout="wide")
-st.title("Análise de Ocorrências - HidroMeter Connect")
+st.set_page_config(layout="wide")
+st.title("Diagnóstico de Estrutura DOCM")
 
 uploaded_files = st.file_uploader(
-    "Arraste arquivos .docm",
+    "Envie arquivos .docm",
     type=["docm"],
     accept_multiple_files=True
 )
 
-def extract_docm_content(file):
+def extract_tables(file):
 
-    try:
-        with zipfile.ZipFile(file) as docm:
-            xml_content = docm.read("word/document.xml")
+    with zipfile.ZipFile(file) as docm:
+        xml_content = docm.read("word/document.xml")
 
-        root = ET.fromstring(xml_content)
+    root = ET.fromstring(xml_content)
 
-        ns = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
+    ns = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
 
-        # texto completo
-        texts = [node.text for node in root.findall('.//w:t', ns) if node.text]
-        full_text = " ".join(texts)
+    tables = []
 
-        # tabelas
-        tables = []
-        for tbl in root.findall('.//w:tbl', ns):
+    for tbl in root.findall('.//w:tbl', ns):
 
-            table_data = []
+        table_data = []
 
-            for row in tbl.findall('.//w:tr', ns):
+        for row in tbl.findall('.//w:tr', ns):
 
-                cells = []
+            row_data = []
 
-                for cell in row.findall('.//w:tc', ns):
+            for cell in row.findall('.//w:tc', ns):
 
-                    cell_text = " ".join(
-                        t.text for t in cell.findall('.//w:t', ns) if t.text
-                    ).strip()
+                texts = [
+                    t.text for t in cell.findall('.//w:t', ns)
+                    if t.text
+                ]
 
-                    cells.append(cell_text)
+                row_data.append(" ".join(texts))
 
-                if cells:
-                    table_data.append(cells)
+            table_data.append(row_data)
 
-            if table_data:
-                tables.append(table_data)
+        tables.append(table_data)
 
-        return full_text, tables
-
-    except Exception as e:
-        st.error(f"Erro ao processar {file.name}: {e}")
-        return "", []
-
-
-def extract_records_from_tables(tables):
-
-    registros = []
-
-    for table in tables:
-
-        if len(table) < 2:
-            continue
-
-        df = pd.DataFrame(table[1:], columns=table[0])
-
-        cols = [c.lower() for c in df.columns]
-
-        natureza_col = None
-        equipamento_col = None
-        horas_col = None
-
-        for i, c in enumerate(cols):
-
-            if "natureza" in c:
-                natureza_col = df.columns[i]
-
-            if "equipamento" in c:
-                equipamento_col = df.columns[i]
-
-            if "hora" in c:
-                horas_col = df.columns[i]
-
-        if natureza_col and equipamento_col and horas_col:
-
-            df[horas_col] = pd.to_numeric(df[horas_col], errors='coerce')
-
-            for _, row in df.iterrows():
-
-                registros.append({
-                    "Natureza": row[natureza_col],
-                    "Equipamento": row[equipamento_col],
-                    "Horas Indisponíveis": row[horas_col]
-                })
-
-    return registros
+    return tables
 
 
 if uploaded_files:
 
-    todos_registros = []
-
     for file in uploaded_files:
 
-        full_text, tables = extract_docm_content(file)
+        st.header(file.name)
 
-        if "hidrometer connect" not in full_text.lower():
-            st.info(f"{file.name} não contém HidroMeter Connect")
-            continue
+        tables = extract_tables(file)
 
-        registros = extract_records_from_tables(tables)
+        st.write(f"Tabelas encontradas: {len(tables)}")
 
-        todos_registros.extend(registros)
+        for i, table in enumerate(tables):
 
-    if todos_registros:
+            st.subheader(f"Tabela {i}")
 
-        df = pd.DataFrame(todos_registros)
+            df = pd.DataFrame(table)
 
-        st.subheader("Dados extraídos")
-        st.dataframe(df)
-
-        ocorrencias = df.groupby("Natureza").size().reset_index(name="Ocorrências")
-
-        total_horas = df["Horas Indisponíveis"].sum()
-
-        horas_equip = df.groupby("Equipamento")["Horas Indisponíveis"].sum().reset_index()
-
-        st.subheader("Ocorrências por Natureza")
-        st.dataframe(ocorrencias)
-
-        st.metric("Total de Horas Indisponíveis", round(total_horas, 2))
-
-        st.subheader("Horas por Equipamento")
-        st.dataframe(horas_equip)
-
-        fig1 = px.bar(
-            ocorrencias,
-            x="Natureza",
-            y="Ocorrências",
-            text="Ocorrências",
-            title="Ocorrências por Natureza"
-        )
-
-        st.plotly_chart(fig1, use_container_width=True)
-
-        fig2 = px.bar(
-            horas_equip,
-            x="Equipamento",
-            y="Horas Indisponíveis",
-            text="Horas Indisponíveis",
-            title="Horas por Equipamento"
-        )
-
-        st.plotly_chart(fig2, use_container_width=True)
-
-    else:
-        st.warning("Nenhum registro encontrado nas tabelas.")
-
-else:
-    st.info("Aguardando upload de arquivos.")
-        st.warning("Nenhum registro encontrado.")
-
-else:
-    st.info("Aguardando upload de arquivos.")
-
+            st.dataframe(df)
