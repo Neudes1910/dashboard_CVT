@@ -129,8 +129,3 @@ if uploaded_files:
         st.info("Nenhum dado encontrado para HidroMeter Connect.")
 else:
     st.info("Aguardando arquivos .docm para upload.")
-        st.info("Nenhum retrabalho encontrado para HidroMeter Connect.")
-else:
-    st.info("Aguardando arquivos .docm para upload.")
-
-
