@@ -1,66 +1,59 @@
 import streamlit as st
 import zipfile
 import xml.etree.ElementTree as ET
-import pandas as pd
+import re
 
-st.set_page_config(layout="wide")
-st.title("Diagnóstico de Estrutura DOCM")
+st.set_page_config(page_title="Detector HidroMeter Connect", layout="wide")
+st.title("Verificação de Produto nos Documentos")
 
 uploaded_files = st.file_uploader(
-    "Envie arquivos .docm",
+    "Arraste arquivos .docm",
     type=["docm"],
     accept_multiple_files=True
 )
 
-def extract_tables(file):
+def extract_full_text(file):
 
-    with zipfile.ZipFile(file) as docm:
-        xml_content = docm.read("word/document.xml")
+    try:
+        with zipfile.ZipFile(file) as docm:
+            xml_content = docm.read("word/document.xml")
 
-    root = ET.fromstring(xml_content)
+        root = ET.fromstring(xml_content)
 
-    ns = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
+        ns = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
 
-    tables = []
+        texts = []
 
-    for tbl in root.findall('.//w:tbl', ns):
+        for node in root.findall('.//w:t', ns):
+            if node.text:
+                texts.append(node.text)
 
-        table_data = []
+        full_text = " ".join(texts)
 
-        for row in tbl.findall('.//w:tr', ns):
+        # normaliza múltiplos espaços
+        full_text = re.sub(r'\s+', ' ', full_text)
 
-            row_data = []
+        return full_text
 
-            for cell in row.findall('.//w:tc', ns):
-
-                texts = [
-                    t.text for t in cell.findall('.//w:t', ns)
-                    if t.text
-                ]
-
-                row_data.append(" ".join(texts))
-
-            table_data.append(row_data)
-
-        tables.append(table_data)
-
-    return tables
+    except Exception as e:
+        st.error(f"Erro ao ler {file.name}: {e}")
+        return ""
 
 
 if uploaded_files:
 
     for file in uploaded_files:
 
-        st.header(file.name)
+        texto = extract_full_text(file)
 
-        tables = extract_tables(file)
+        if re.search(r'hidrometer\s+connect', texto, re.IGNORECASE):
 
-        st.write(f"Tabelas encontradas: {len(tables)}")
+            st.success(f"{file.name} contém HidroMeter Connect")
 
-        for i, table in enumerate(tables):
+        else:
 
-            st.subheader(f"Tabela {i}")
+            st.warning(f"{file.name} NÃO contém HidroMeter Connect")
 
-            df = pd.DataFrame(table)
+else:
 
-            st.dataframe(df)
+    st.info("Aguardando arquivos.")
