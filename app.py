@@ -9,12 +9,16 @@ st.set_page_config(page_title="Análise HidroMeter Connect", layout="wide")
 st.title("Análise de Ocorrências - HidroMeter Connect")
 
 uploaded_files = st.file_uploader(
-    "Arraste os arquivos .docm",
+    "Arraste arquivos .docm aqui",
     type=["docm"],
     accept_multiple_files=True
 )
 
 def extract_full_text(file):
+    """
+    Extrai TODO o texto do documento Word.
+    Isso evita problemas com palavras quebradas no XML.
+    """
 
     try:
         with zipfile.ZipFile(file) as docm:
@@ -28,18 +32,21 @@ def extract_full_text(file):
 
         for node in root.findall('.//w:t', ns):
             if node.text:
-                texts.append(node.text)
+                texts.append(node.text.strip())
 
         full_text = " ".join(texts)
 
         return full_text
 
     except Exception as e:
-        st.error(f"Erro ao ler {file.name}: {e}")
+        st.error(f"Erro ao processar {file.name}: {e}")
         return ""
 
 
-def parse_document(lines):
+def extract_records(full_text):
+    """
+    Separa registros a partir de palavras chave
+    """
 
     registros = []
 
@@ -47,67 +54,51 @@ def parse_document(lines):
     equipamento = None
     horas = None
 
-    for line in lines:
+    linhas = full_text.split()
 
-        # produto
-        if "HidroMeter Connect" in line:
-            produto = "HidroMeter Connect"
+    buffer = " ".join(linhas)
 
-        # natureza
-        if "Natureza" in line:
-            match = re.search(r'Natureza\s*[:\-]?\s*(.*)', line)
-            if match:
-                natureza = match.group(1).strip()
+    # procura natureza
+    naturezas = re.findall(r'Natureza\s*[:\-]?\s*([A-Za-z ]+)', buffer)
 
-        # equipamento
-        if "Equipamento" in line:
-            match = re.search(r'Equipamento\s*[:\-]?\s*(.*)', line)
-            if match:
-                equipamento = match.group(1).strip()
+    # procura equipamentos
+    equipamentos = re.findall(r'Equipamento\s*[:\-]?\s*([A-Za-z0-9_\- ]+)', buffer)
 
-        # horas indisponíveis
-        if "Horas" in line and "Indispon" in line:
-            match = re.search(r'([\d]+[\.,]?[\d]*)', line)
-            if match:
-                horas = float(match.group(1).replace(",", "."))
+    # procura horas
+    horas_list = re.findall(r'Horas\s*Indispon[ií]veis\s*[:\-]?\s*([\d]+[\.,]?[\d]*)', buffer)
 
-        # quando os três campos existem cria registro
-        if natureza and equipamento and horas is not None:
+    for i in range(min(len(naturezas), len(equipamentos), len(horas_list))):
 
-            registros.append({
-                "Natureza": natureza,
-                "Equipamento": equipamento,
-                "Horas Indisponíveis": horas
-            })
-
-            natureza = None
-            equipamento = None
-            horas = None
+        registros.append({
+            "Natureza": naturezas[i].strip(),
+            "Equipamento": equipamentos[i].strip(),
+            "Horas Indisponíveis": float(horas_list[i].replace(",", "."))
+        })
 
     return registros
 
 
 if uploaded_files:
 
-    registros_totais = []
+    todos_registros = []
 
     for file in uploaded_files:
 
         texto = extract_full_text(file)
 
-if "hidrometer connect" not in texto.lower():
-    st.info(f"{file.name} não contém HidroMeter Connect")
-    continue
+        # procura produto em QUALQUER parte do documento
+        if "hidrometer connect" not in texto.lower():
             st.info(f"{file.name} não contém HidroMeter Connect")
             continue
 
-        registros = parse_document(linhas)
+        registros = extract_records(texto)
 
-        registros_totais.extend(registros)
+        if registros:
+            todos_registros.extend(registros)
 
-    if registros_totais:
+    if todos_registros:
 
-        df = pd.DataFrame(registros_totais)
+        df = pd.DataFrame(todos_registros)
 
         st.subheader("Dados extraídos")
         st.dataframe(df)
@@ -115,7 +106,7 @@ if "hidrometer connect" not in texto.lower():
         # ocorrências por natureza
         ocorrencias = df.groupby("Natureza").size().reset_index(name="Ocorrências")
 
-        # total horas
+        # total horas indisponíveis
         total_horas = df["Horas Indisponíveis"].sum()
 
         # horas por equipamento
@@ -124,9 +115,9 @@ if "hidrometer connect" not in texto.lower():
         st.subheader("Ocorrências por Natureza")
         st.dataframe(ocorrencias)
 
-        st.metric("Total de Horas Indisponíveis", round(total_horas,2))
+        st.metric("Total de Horas Indisponíveis", round(total_horas, 2))
 
-        st.subheader("Horas por Equipamento")
+        st.subheader("Horas Indisponíveis por Equipamento")
         st.dataframe(horas_equip)
 
         fig1 = px.bar(
@@ -144,7 +135,7 @@ if "hidrometer connect" not in texto.lower():
             x="Equipamento",
             y="Horas Indisponíveis",
             text="Horas Indisponíveis",
-            title="Horas Indisponíveis por Equipamento"
+            title="Horas por Equipamento"
         )
 
         st.plotly_chart(fig2, use_container_width=True)
@@ -153,6 +144,4 @@ if "hidrometer connect" not in texto.lower():
         st.warning("Nenhum registro encontrado.")
 
 else:
-    st.info("Aguardando arquivos.")
-
-
+    st.info("Aguardando upload de arquivos.")
