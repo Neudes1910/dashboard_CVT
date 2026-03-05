@@ -5,10 +5,10 @@ import plotly.express as px
 import re
 
 st.set_page_config(page_title="Contagem de Arquivos Word (.docm)", layout="wide")
-st.title("Dashboard de Contagem de Arquivos Word com Macro")
+st.title("Dashboard CVT - Demonstrativo dos dados CVT")
 
 uploaded_files = st.file_uploader(
-    "Arraste e solte arquivos Word (.docm) aqui",
+    "Arraste e solte os arquivos dos relatórios aqui",
     type=["docm"],
     accept_multiple_files=True
 )
@@ -50,3 +50,4 @@ if uploaded_files:
         st.plotly_chart(fig, use_container_width=True)
 else:
     st.info("Aguardando arquivos .docm para upload.")
+
