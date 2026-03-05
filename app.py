@@ -6,8 +6,8 @@ from collections import defaultdict
 st.title("Análise de Ocorrências - HidroMeter Connect")
 
 arquivos = st.file_uploader(
-    "Envie os arquivos .docx",
-    type="docx",
+    "Envie os arquivos Word",
+    type=["docx","docm"],
     accept_multiple_files=True
 )
 
@@ -168,3 +168,4 @@ if arquivos:
 
     st.subheader("Total de Horas Indisponíveis")
     st.write(horas_total)
+
