@@ -1,10 +1,12 @@
 import streamlit as st
 import zipfile
 import xml.etree.ElementTree as ET
+import pandas as pd
+import plotly.express as px
 import re
 
-st.set_page_config(page_title="Detector HidroMeter Connect", layout="wide")
-st.title("Verificação de Produto nos Documentos")
+st.set_page_config(page_title="Retrabalhos HidroMeter Connect", layout="wide")
+st.title("Análise de Ocorrências - HidroMeter Connect")
 
 uploaded_files = st.file_uploader(
     "Arraste arquivos .docm",
@@ -30,7 +32,7 @@ def extract_full_text(file):
 
         full_text = " ".join(texts)
 
-        # normaliza múltiplos espaços
+        # normaliza espaços
         full_text = re.sub(r'\s+', ' ', full_text)
 
         return full_text
@@ -40,20 +42,92 @@ def extract_full_text(file):
         return ""
 
 
+def extract_fields(text):
+
+    natureza = None
+    equipamento = None
+    horas = None
+
+    n = re.search(r'Natureza\s*:\s*([^\n\r]+)', text, re.IGNORECASE)
+    if n:
+        natureza = n.group(1).strip()
+
+    e = re.search(r'Equipamento\s*:\s*([^\n\r]+)', text, re.IGNORECASE)
+    if e:
+        equipamento = e.group(1).strip()
+
+    h = re.search(r'Horas\s*Indispon[ií]veis\s*:\s*([\d\.,]+)', text, re.IGNORECASE)
+    if h:
+        horas = float(h.group(1).replace(",", "."))
+
+    return natureza, equipamento, horas
+
+
 if uploaded_files:
+
+    registros = []
 
     for file in uploaded_files:
 
         texto = extract_full_text(file)
 
-        if re.search(r'hidrometer\s+connect', texto, re.IGNORECASE):
+        if not re.search(r'hidrometer\s+connect', texto, re.IGNORECASE):
+            continue
 
-            st.success(f"{file.name} contém HidroMeter Connect")
+        natureza, equipamento, horas = extract_fields(texto)
 
-        else:
+        if natureza or equipamento or horas:
 
-            st.warning(f"{file.name} NÃO contém HidroMeter Connect")
+            registros.append({
+                "Arquivo": file.name,
+                "Natureza": natureza,
+                "Equipamento": equipamento,
+                "Horas Indisponíveis": horas
+            })
+
+    if registros:
+
+        df = pd.DataFrame(registros)
+
+        st.subheader("Dados extraídos")
+        st.dataframe(df)
+
+        ocorrencias = df.groupby("Natureza").size().reset_index(name="Ocorrências")
+
+        total_horas = df["Horas Indisponíveis"].sum()
+
+        horas_equip = df.groupby("Equipamento")["Horas Indisponíveis"].sum().reset_index()
+
+        st.subheader("Ocorrências por Natureza")
+        st.dataframe(ocorrencias)
+
+        st.metric("Total de Horas Indisponíveis", round(total_horas, 2))
+
+        st.subheader("Horas Indisponíveis por Equipamento")
+        st.dataframe(horas_equip)
+
+        fig1 = px.bar(
+            ocorrencias,
+            x="Natureza",
+            y="Ocorrências",
+            text="Ocorrências",
+            title="Ocorrências por Natureza"
+        )
+
+        st.plotly_chart(fig1, use_container_width=True)
+
+        fig2 = px.bar(
+            horas_equip,
+            x="Equipamento",
+            y="Horas Indisponíveis",
+            text="Horas Indisponíveis",
+            title="Horas por Equipamento"
+        )
+
+        st.plotly_chart(fig2, use_container_width=True)
+
+    else:
+        st.warning("Nenhum registro com Natureza/Equipamento/Horas foi encontrado.")
 
 else:
-
-    st.info("Aguardando arquivos.")
+    st.info("Aguardando upload de arquivos.")
