@@ -14,7 +14,7 @@ st.title("Analisador Automático de Relatórios - CVT")
 # ---------------------------------------------------------
 # Função de marca d'água automática (imagem local)
 # ---------------------------------------------------------
-def set_watermark_full("Editedimage.png", opacity=0.05):
+def set_watermark_full(image_path, opacity=0.05):
     """
     Adiciona marca d'água no fundo do app Streamlit usando uma imagem local.
     A imagem será repetida para cobrir todo o fundo.
@@ -46,7 +46,7 @@ def set_watermark_full("Editedimage.png", opacity=0.05):
 # Aplica a marca d'água
 # ---------------------------------------------------------
 # Coloque sua imagem na mesma pasta do app.py e ajuste o nome
-set_watermark_full("watermark.png", opacity=0.05)
+set_watermark_full("Editedimage.png", opacity=0.05)
 
 # ---------------------------------------------------------
 # Upload de arquivos
@@ -283,3 +283,4 @@ if uploaded_files:
 
 else:
     st.info("Aguardando envio dos relatórios.")
+
