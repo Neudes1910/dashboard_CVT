@@ -16,7 +16,7 @@ uploaded_files = st.file_uploader(
 NAMESPACE = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
 
 # ---------------------------------------------------------
-# EXTRAÇÃO DE TEXTO E TABELAS
+# EXTRAÇÃO DE TEXTO E TABELAS (somente do corpo)
 # ---------------------------------------------------------
 def extract_text_and_tables(file):
     text_content = []
@@ -26,14 +26,15 @@ def extract_text_and_tables(file):
         xml_content = doc.read("word/document.xml")
 
     root = ET.fromstring(xml_content)
+    body = root.find('w:body', NAMESPACE)  # pega apenas o corpo do documento
 
-    # Extrai todo o texto do documento
-    for t in root.findall('.//w:t', NAMESPACE):
+    # Extrai todo o texto do corpo
+    for t in body.findall('.//w:t', NAMESPACE):
         if t.text:
             text_content.append(t.text)
 
-    # Extrai todas as tabelas
-    for tbl in root.findall('.//w:tbl', NAMESPACE):
+    # Extrai tabelas do corpo
+    for tbl in body.findall('.//w:tbl', NAMESPACE):
         table_data = []
         for row in tbl.findall('.//w:tr', NAMESPACE):
             cells = []
@@ -63,14 +64,13 @@ def extract_product(tables):
     return "Produto não identificado"
 
 # ---------------------------------------------------------
-# EXTRAIR MÊS DO CAMPO "Data início:"
+# EXTRAIR MÊS DO CAMPO "Data início:" (apenas do corpo)
 # ---------------------------------------------------------
 def extrair_mes_do_texto(texto):
     """
-    Captura datas exclusivamente do campo 'Data início:'.
+    Captura datas exclusivamente do campo 'Data início:' no corpo do documento.
     Aceita variações de separadores, 1 ou 2 dígitos no dia/mês e espaços extras.
     """
-
     padrao = r"Data\s*in[ií]cio\s*[:\s]\s*(\d{1,2})[./-](\d{1,2})[./-](\d{4})"
     match = re.search(padrao, texto, re.IGNORECASE)
     if match:
@@ -78,7 +78,7 @@ def extrair_mes_do_texto(texto):
         mes = mes.zfill(2)
         return f"{mes}/{ano}"
 
-    # fallback extremamente flexível: procura qualquer ocorrência de "Data" + "inicio" seguida de uma data
+    # fallback flexível: qualquer ocorrência de 'Data início' seguida de data
     padrao_flex = r"data\s*in[ií]cio.*?(\d{1,2})[./-](\d{1,2})[./-](\d{4})"
     match = re.search(padrao_flex, texto, re.IGNORECASE | re.DOTALL)
     if match:
