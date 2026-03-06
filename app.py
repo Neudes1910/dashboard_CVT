@@ -66,7 +66,7 @@ def extract_product(tables):
 # EXTRAIR MÊS A PARTIR DE "Data início:"
 # ---------------------------------------------------------
 def extrair_mes_do_texto(texto):
-    padrao = r"Data\s*in[ií]cio\s*:\s*(\d{2})[./-](\d{2})[./-](\d{4})"
+    padrao = r"in[ií]cio\s*:\s*(\d{2})[./-](\d{2})[./-](\d{4})"
     match = re.search(padrao, texto, re.IGNORECASE)
     if match:
         dia, mes, ano = match.groups()
@@ -200,3 +200,4 @@ if uploaded_files:
 
 else:
     st.info("Aguardando envio dos relatórios.")
+
