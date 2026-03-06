@@ -2,7 +2,6 @@ import streamlit as st
 import zipfile
 import xml.etree.ElementTree as ET
 import pandas as pd
-import plotly.express as px
 import re
 
 st.set_page_config(page_title="Analisador Automático de Relatórios - CVT", layout="wide")
@@ -162,7 +161,7 @@ if uploaded_files:
 
 
 # ---------------------------------------------------------
-# OCORRÊNCIAS POR NATUREZA
+# TABELA — OCORRÊNCIAS POR NATUREZA
 # ---------------------------------------------------------
 
     if ocorrencias:
@@ -186,20 +185,8 @@ if uploaded_files:
             .reset_index(name="Total de Ocorrências")
         )
 
-        st.subheader("Total de Ocorrências por Natureza")
-
-        fig = px.bar(
-            resumo,
-            x=natureza_col,
-            y="Total de Ocorrências",
-            color="PRODUTO",
-            text="Total de Ocorrências",
-            barmode="group"
-        )
-
-        fig.update_layout(xaxis_title="Natureza", yaxis_title="Total de Ocorrências")
-
-        st.plotly_chart(fig, use_container_width=True)
+        st.subheader("Tabela - Ocorrências por Natureza")
+        st.dataframe(resumo, use_container_width=True)
 
 
 # ---------------------------------------------------------
@@ -237,7 +224,7 @@ if uploaded_files:
 
 
 # ---------------------------------------------------------
-# HORAS POR NATUREZA
+# TABELA — HORAS POR NATUREZA
 # ---------------------------------------------------------
 
         horas_nat = (
@@ -247,21 +234,12 @@ if uploaded_files:
             .reset_index()
         )
 
-        fig2 = px.bar(
-            horas_nat,
-            x=col_nat,
-            y="HORAS",
-            color="PRODUTO",
-            text="HORAS",
-            barmode="group",
-            title="Horas Indisponíveis por Natureza"
-        )
-
-        st.plotly_chart(fig2, use_container_width=True)
+        st.subheader("Tabela - Horas por Natureza")
+        st.dataframe(horas_nat, use_container_width=True)
 
 
 # ---------------------------------------------------------
-# HORAS POR EQUIPAMENTO
+# TABELA — HORAS POR EQUIPAMENTO
 # ---------------------------------------------------------
 
         horas_eq = (
@@ -271,17 +249,8 @@ if uploaded_files:
             .reset_index()
         )
 
-        fig3 = px.bar(
-            horas_eq,
-            x=col_equip,
-            y="HORAS",
-            color="PRODUTO",
-            text="HORAS",
-            barmode="group",
-            title="Horas Indisponíveis por Equipamento"
-        )
-
-        st.plotly_chart(fig3, use_container_width=True)
+        st.subheader("Tabela - Horas por Equipamento")
+        st.dataframe(horas_eq, use_container_width=True)
 
 else:
     st.info("Aguardando envio dos relatórios.")
