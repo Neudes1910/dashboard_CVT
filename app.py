@@ -105,9 +105,6 @@ if uploaded_files:
 
             text, tables = extract_text_and_tables(file)
 
-            if not re.search(r"Hidro\s*Meter\s*Connect", text, re.IGNORECASE):
-                continue
-
             occ_table = find_occurrence_table(tables)
 
             if occ_table:
@@ -246,4 +243,5 @@ if uploaded_files:
 
 else:
     st.info("Aguardando envio dos relatórios.")
+
 
