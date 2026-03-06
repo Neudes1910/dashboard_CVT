@@ -128,6 +128,7 @@ if uploaded_files:
                     df_occ = pd.DataFrame(occ_table[1:], columns=occ_table[0])
                     df_occ["PRODUTO"] = produto
                     df_occ["MES"] = mes_relatorio
+                    df_occ["MES_DT"] = mes_para_datetime(mes_relatorio)
                     ocorrencias.append(df_occ)
 
                 downtime_table = find_downtime_table(tables)
@@ -135,6 +136,7 @@ if uploaded_files:
                     df_down = pd.DataFrame(downtime_table[1:], columns=downtime_table[0])
                     df_down["PRODUTO"] = produto
                     df_down["MES"] = mes_relatorio
+                    df_down["MES_DT"] = mes_para_datetime(mes_relatorio)
                     horas_registros.append(df_down)
 
             elif file.name.endswith('.xlsx'):
@@ -145,18 +147,15 @@ if uploaded_files:
                     )
                     df_excel = df_excel.dropna(subset=["Data de ida"])
                     df_excel["MES"] = df_excel["Data de ida"].dt.strftime("%m/%Y")
+                    df_excel["MES_DT"] = pd.to_datetime(df_excel["MES"], format="%m/%Y")
 
+                    # Objetivos traçados
                     objetivos_colunas = [c for c in df_excel.columns if "Quantos objetivos foram traçados antes da viagem" in c]
-                    if objetivos_colunas:
-                        df_excel["OBJETIVOS"] = pd.to_numeric(df_excel[objetivos_colunas[0]], errors='coerce').fillna(0)
-                    else:
-                        df_excel["OBJETIVOS"] = 0
+                    df_excel["OBJETIVOS"] = pd.to_numeric(df_excel[objetivos_colunas[0]], errors='coerce').fillna(0) if objetivos_colunas else 0
 
+                    # Objetivos cumpridos
                     cumpridos_colunas = [c for c in df_excel.columns if "Dos objetivos traçados, quantos foram cumpridos" in c]
-                    if cumpridos_colunas:
-                        df_excel["OBJETIVOS_CUMPRIDOS"] = pd.to_numeric(df_excel[cumpridos_colunas[0]], errors='coerce').fillna(0)
-                    else:
-                        df_excel["OBJETIVOS_CUMPRIDOS"] = 0
+                    df_excel["OBJETIVOS_CUMPRIDOS"] = pd.to_numeric(df_excel[cumpridos_colunas[0]], errors='coerce').fillna(0) if cumpridos_colunas else 0
 
                     viagens.append(df_excel)
 
@@ -175,7 +174,6 @@ if uploaded_files:
         df_total[natureza_col] = df_total[natureza_col].astype(str).str.strip()
         excluir = ["escolha um item", "escolher um item."]
         df_total = df_total[~df_total[natureza_col].str.lower().isin(excluir)]
-        df_total["MES_DT"] = df_total["MES"].apply(mes_para_datetime)
         df_total = df_total.sort_values("MES_DT", ascending=False)
         meses = df_total[["MES", "MES_DT"]].drop_duplicates().sort_values("MES_DT", ascending=False)["MES"]
 
@@ -198,7 +196,6 @@ if uploaded_files:
         df_horas["HORAS"] = df_horas[col_tempo].apply(converter_horas)
         df_horas[col_nat] = df_horas[col_nat].astype(str).str.strip()
         df_horas = df_horas[~df_horas[col_nat].str.lower().isin(["escolha um item", "escolher um item."])]
-        df_horas["MES"] = df_horas.get("MES", extrair_mes_do_arquivo(file))
         df_horas["MES_DT"] = df_horas["MES"].apply(mes_para_datetime)
         df_horas = df_horas.sort_values("MES_DT", ascending=False)
         meses = df_horas[["MES", "MES_DT"]].drop_duplicates().sort_values("MES_DT", ascending=False)["MES"]
@@ -220,7 +217,6 @@ if uploaded_files:
     # ---------------------------------------------------------
     if viagens:
         df_viagens = pd.concat(viagens, ignore_index=True)
-        df_viagens["MES_DT"] = df_viagens["MES"].apply(mes_para_datetime)
         df_viagens = df_viagens.sort_values("MES_DT", ascending=False)
         meses = df_viagens[["MES", "MES_DT"]].drop_duplicates().sort_values("MES_DT", ascending=False)["MES"]
 
