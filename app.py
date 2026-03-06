@@ -55,6 +55,16 @@ def extract_text_and_tables(file):
     return " ".join(text_content), tables
 
 
+def extrair_produto(texto):
+
+    match = re.search(r'Produto\s*[-–—]*\s*(.+)', texto, re.IGNORECASE)
+
+    if match:
+        return match.group(1).strip()
+
+    return "Produto não identificado"
+
+
 def find_occurrence_table(tables):
 
     for table in tables:
@@ -105,23 +115,27 @@ if uploaded_files:
 
             text, tables = extract_text_and_tables(file)
 
+            produto = extrair_produto(text)
+
             occ_table = find_occurrence_table(tables)
 
             if occ_table:
                 df_occ = pd.DataFrame(occ_table[1:], columns=occ_table[0])
+                df_occ["PRODUTO"] = produto
                 ocorrencias.append(df_occ)
 
             downtime_table = find_downtime_table(tables)
 
             if downtime_table:
                 df_down = pd.DataFrame(downtime_table[1:], columns=downtime_table[0])
+                df_down["PRODUTO"] = produto
                 horas_registros.append(df_down)
 
         except Exception as e:
             st.warning(f"Erro ao processar {file.name}: {e}")
 
     # -------------------------
-    # OCORRÊNCIAS POR NATUREZA
+    # OCORRÊNCIAS
     # -------------------------
 
     if ocorrencias:
@@ -140,7 +154,7 @@ if uploaded_files:
 
         resumo = (
             df_total
-            .groupby(natureza_col)
+            .groupby(["PRODUTO", natureza_col])
             .size()
             .reset_index(name="Total de Ocorrências")
         )
@@ -151,11 +165,10 @@ if uploaded_files:
             resumo,
             x=natureza_col,
             y="Total de Ocorrências",
-            text="Total de Ocorrências",
-            color=natureza_col
+            color="PRODUTO",
+            barmode="group",
+            text="Total de Ocorrências"
         )
-
-        fig.update_layout(showlegend=False)
 
         st.plotly_chart(fig, use_container_width=True)
 
@@ -167,7 +180,6 @@ if uploaded_files:
 
         df_horas = pd.concat(horas_registros, ignore_index=True)
 
-        # limpa nomes de colunas (Word costuma quebrar linhas)
         df_horas.columns = (
             df_horas.columns
             .str.replace("\n", " ")
@@ -186,11 +198,7 @@ if uploaded_files:
             ~df_horas[col_nat].str.lower().isin(["escolha um item", "escolher um item."])
         ]
 
-        df_horas[col_equip] = (
-            df_horas[col_equip]
-            .astype(str)
-            .str.strip()
-        )
+        df_horas[col_equip] = df_horas[col_equip].astype(str).str.strip()
 
         total_horas = df_horas["HORAS"].sum()
 
@@ -201,7 +209,7 @@ if uploaded_files:
 
         horas_nat = (
             df_horas
-            .groupby(col_nat)["HORAS"]
+            .groupby(["PRODUTO", col_nat])["HORAS"]
             .sum()
             .reset_index()
         )
@@ -210,12 +218,11 @@ if uploaded_files:
             horas_nat,
             x=col_nat,
             y="HORAS",
+            color="PRODUTO",
+            barmode="group",
             text="HORAS",
-            color=col_nat,
             title="Horas Indisponíveis por Natureza"
         )
-
-        fig2.update_layout(showlegend=False)
 
         st.plotly_chart(fig2, use_container_width=True)
 
@@ -223,7 +230,7 @@ if uploaded_files:
 
         horas_eq = (
             df_horas
-            .groupby(col_equip)["HORAS"]
+            .groupby(["PRODUTO", col_equip])["HORAS"]
             .sum()
             .reset_index()
         )
@@ -232,16 +239,13 @@ if uploaded_files:
             horas_eq,
             x=col_equip,
             y="HORAS",
+            color="PRODUTO",
+            barmode="group",
             text="HORAS",
-            color=col_equip,
             title="Horas Indisponíveis por Equipamento"
         )
-
-        fig3.update_layout(showlegend=False)
 
         st.plotly_chart(fig3, use_container_width=True)
 
 else:
     st.info("Aguardando envio dos relatórios.")
-
-
