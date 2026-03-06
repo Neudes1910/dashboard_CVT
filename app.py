@@ -65,11 +65,17 @@ def extract_product(tables):
 def extrair_mes_do_arquivo(file):
     """
     Extrai a data do nome do arquivo.
-    Suporta formatos: dd.mm.yyyy, dd_mm_yyyy, d.m.yy, d_m_yy, dd_mm
+    Suporta formatos com separadores: ., _, -
+    Formatos:
+      d-m-yy, d-m-yyyy, dd-m-yy, dd-m-yyyy,
+      d-mm-yy, d-mm-yyyy, dd-mm-yy, dd-mm-yyyy,
+      d.m.yy, d.m.yyyy, dd.mm.yy, dd.mm.yyyy,
+      d_m_yy, d_m_yyyy, dd_m_yy, dd_m_yyyy
+      dd_mm
     Retorna no formato MM/YYYY ou "Não identificado" se não houver ano.
     """
     filename = file.name
-    padrao = r'(\d{1,2})[._](\d{1,2})(?:[._](\d{2,4}))?'
+    padrao = r'(\d{1,2})[._-](\d{1,2})(?:[._-](\d{2,4}))?'
     match = re.search(padrao, filename)
     if match:
         dia, mes, ano = match.groups()
