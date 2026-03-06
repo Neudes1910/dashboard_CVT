@@ -167,12 +167,12 @@ if uploaded_files:
             st.warning(f"Erro ao processar {file.name}: {e}")
 
     # ---------------------------------------------------------
-    # FUNÇÃO AUXILIAR PARA OBTER MESES ORDENADOS MAIS RECENTE → MAIS ANTIGO
+    # ORDENAR MESES MAIS RECENTES PRIMEIRO
     # ---------------------------------------------------------
     def obter_meses_ordenados(df):
         df_meses = df[["MES", "MES_DT"]].drop_duplicates()
         df_meses = df_meses.sort_values("MES_DT", ascending=False)
-        return df_meses
+        return df_meses["MES"].tolist()
 
     # ---------------------------------------------------------
     # OCORRÊNCIAS POR MÊS
@@ -183,10 +183,9 @@ if uploaded_files:
         df_total[natureza_col] = df_total[natureza_col].astype(str).str.strip()
         excluir = ["escolha um item", "escolher um item."]
         df_total = df_total[~df_total[natureza_col].str.lower().isin(excluir)]
-        df_total = df_total.sort_values("MES_DT", ascending=False)
+        df_total["MES_DT"] = df_total["MES"].apply(mes_para_datetime)
 
-        for _, row in obter_meses_ordenados(df_total).iterrows():
-            mes = row["MES"]
+        for mes in obter_meses_ordenados(df_total):
             df_mes = df_total[df_total["MES"] == mes]
             st.header(f"Mês: {mes}")
             resumo = df_mes.groupby(["PRODUTO", natureza_col]).size().reset_index(name="TOTAL OCORRÊNCIAS")
@@ -200,16 +199,14 @@ if uploaded_files:
         df_horas = pd.concat(horas_registros, ignore_index=True)
         df_horas.columns = df_horas.columns.str.replace("\n", " ").str.strip()
         col_tempo = next(c for c in df_horas.columns if "TEMPO" in c.upper())
-        col_equip = next(c for c in df_horas.columns if "QUAL EQUIPAMENTO?" in c.upper())
+        col_equip = next(c for c in df_horas.columns if "QUAL EQUIPAMENTO" in c.upper())
         col_nat = next(c for c in df_horas.columns if "NATUREZA" in c.upper())
         df_horas["HORAS"] = df_horas[col_tempo].apply(converter_horas)
         df_horas[col_nat] = df_horas[col_nat].astype(str).str.strip()
         df_horas = df_horas[~df_horas[col_nat].str.lower().isin(["escolha um item", "escolher um item."])]
         df_horas["MES_DT"] = df_horas["MES"].apply(mes_para_datetime)
-        df_horas = df_horas.sort_values("MES_DT", ascending=False)
 
-        for _, row in obter_meses_ordenados(df_horas).iterrows():
-            mes = row["MES"]
+        for mes in obter_meses_ordenados(df_horas):
             df_mes = df_horas[df_horas["MES"] == mes]
             st.header(f"Horas Indisponíveis — {mes}")
             total_horas = df_mes["HORAS"].sum()
@@ -226,24 +223,14 @@ if uploaded_files:
     # ---------------------------------------------------------
     if viagens:
         df_viagens = pd.concat(viagens, ignore_index=True)
-        df_viagens = df_viagens.sort_values("MES_DT", ascending=False)
+        df_viagens["MES_DT"] = df_viagens["MES"].apply(mes_para_datetime)
 
-        for _, row in obter_meses_ordenados(df_viagens).iterrows():
-            mes = row["MES"]
+        for mes in obter_meses_ordenados(df_viagens):
             df_mes = df_viagens[df_viagens["MES"] == mes]
-
-            resumo_viagens = df_mes.shape[0]
             st.header(f"Viagens Realizadas — {mes}")
-            st.metric("Total de Viagens", resumo_viagens)
-
-            total_obj = df_mes["OBJETIVOS"].sum()
-            st.subheader("Objetivos Traçados Antes das Viagens")
-            st.metric("Total de Objetivos Traçados", total_obj)
-
-            total_obj_cumpridos = df_mes["OBJETIVOS_CUMPRIDOS"].sum()
-            st.subheader("Objetivos Cumpridos")
-            st.metric("Total de Objetivos Cumpridos", total_obj_cumpridos)
+            st.metric("Total de Viagens", df_mes.shape[0])
+            st.metric("Total de Objetivos Traçados", df_mes["OBJETIVOS"].sum())
+            st.metric("Total de Objetivos Cumpridos", df_mes["OBJETIVOS_CUMPRIDOS"].sum())
 
 else:
     st.info("Aguardando envio dos relatórios.")
-
