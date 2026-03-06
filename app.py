@@ -6,6 +6,20 @@ import re
 
 st.set_page_config(page_title="Analisador Automático de Relatórios - CVT", layout="wide")
 st.title("Analisador Automático de Relatórios - CVT")
+st.markdown("""
+<style>
+
+[data-testid="stDataFrame"] table {
+    font-size: 18px;
+}
+
+[data-testid="stDataFrame"] th {
+    font-size: 20px;
+    font-weight: bold;
+}
+
+</style>
+""", unsafe_allow_html=True)
 
 uploaded_files = st.file_uploader(
     "Envie os relatórios Word",
@@ -254,3 +268,4 @@ if uploaded_files:
 
 else:
     st.info("Aguardando envio dos relatórios.")
+
