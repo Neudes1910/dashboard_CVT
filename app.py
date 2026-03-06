@@ -26,22 +26,19 @@ def extract_text_and_tables(file):
         xml_content = doc.read("word/document.xml")
 
     root = ET.fromstring(xml_content)
-    body = root.find('w:body', NAMESPACE)  # pega apenas o corpo
+    body = root.find('w:body', NAMESPACE)
 
-    # Extrai todo o texto do corpo
     for t in body.findall('.//w:t', NAMESPACE):
         if t.text:
             text_content.append(t.text)
 
-    # Extrai tabelas do corpo
     for tbl in body.findall('.//w:tbl', NAMESPACE):
         table_data = []
         for row in tbl.findall('.//w:tr', NAMESPACE):
             cells = []
             for cell in row.findall('.//w:tc', NAMESPACE):
                 texts = [t.text for t in cell.findall('.//w:t', NAMESPACE) if t.text]
-                cell_text = " ".join(texts).strip()
-                cells.append(cell_text)
+                cells.append(" ".join(texts).strip())
             if cells:
                 table_data.append(cells)
         if table_data:
@@ -59,8 +56,7 @@ def extract_product(tables):
                 chave = str(row[0]).strip().lower()
                 if chave.startswith("produto"):
                     produto = str(row[1]).strip()
-                    produto = re.sub(r"\s+", " ", produto)
-                    return produto
+                    return re.sub(r"\s+", " ", produto)
     return "Produto não identificado"
 
 # ---------------------------------------------------------
@@ -69,7 +65,7 @@ def extract_product(tables):
 def extrair_mes_do_titulo(file):
     """
     Extrai a data do título do documento (docProps/core.xml).
-    Procura por padrão de data dd/mm/yyyy ou dd-mm-yyyy ou dd.mm.yyyy após 'início'.
+    Suporta formatos: dd.mm.yyyy, dd_mm_yyyy, d.m.yy, d_m_yy, dd_mm
     """
     try:
         with zipfile.ZipFile(file) as doc:
@@ -79,12 +75,24 @@ def extrair_mes_do_titulo(file):
         title_node = root.find('dc:title', ns)
         if title_node is not None and title_node.text:
             title_text = title_node.text
-            # busca por padrão de data após "início"
-            padrao = r"in[ií]cio.*?(\d{1,2})[./-](\d{1,2})[./-](\d{4})"
-            match = re.search(padrao, title_text, re.IGNORECASE)
+
+            # Regex abrangente para datas
+            padrao = r"""
+                (?:(?:in[ií]cio)[:_\s]*)?   # opcional "início" seguido de :, _, ou espaço
+                (\d{1,2})                    # dia
+                [._]                          # separador
+                (\d{1,2})                     # mês
+                (?:[._](\d{2,4}))?            # opcional ano
+            """
+            match = re.search(padrao, title_text, re.IGNORECASE | re.VERBOSE)
             if match:
                 dia, mes, ano = match.groups()
                 mes = mes.zfill(2)
+                if ano is None:
+                    ano = "Não identificado"
+                elif len(ano) == 2:
+                    # converte yy para yyyy assumindo século 2000
+                    ano = "20" + ano
                 return f"{mes}/{ano}"
     except Exception:
         pass
@@ -113,8 +121,7 @@ def find_downtime_table(tables):
 def converter_horas(valor):
     if valor is None:
         return 0
-    texto = str(valor).lower()
-    match = re.search(r'(\d+[.,]?\d*)', texto)
+    match = re.search(r'(\d+[.,]?\d*)', str(valor).lower())
     if match:
         return float(match.group(1).replace(",", "."))
     return 0
@@ -130,7 +137,7 @@ if uploaded_files:
         try:
             text, tables = extract_text_and_tables(file)
             produto = extract_product(tables)
-            mes_relatorio = extrair_mes_do_titulo(file)  # usa título do documento
+            mes_relatorio = extrair_mes_do_titulo(file)
 
             occ_table = find_occurrence_table(tables)
             if occ_table:
