@@ -160,29 +160,29 @@ if uploaded_files:
 
     if horas_registros:
 
-df_horas = pd.concat(horas_registros, ignore_index=True)
+        df_horas = pd.concat(horas_registros, ignore_index=True)
 
-# limpa nomes das colunas (Word costuma inserir quebras de linha)
-df_horas.columns = (
-    df_horas.columns
-    .str.replace("\n", " ")
-    .str.strip()
-)
+        # limpa nomes das colunas (Word costuma inserir quebras de linha)
+        df_horas.columns = (
+            df_horas.columns
+            .str.replace("\n", " ")
+            .str.strip()
+                           )        
 
-# identifica colunas corretas
-col_tempo = next(c for c in df_horas.columns if "TEMPO" in c.upper())
-col_equip = next(c for c in df_horas.columns if "EQUIPAMENTO" in c.upper())
-col_nat = next(c for c in df_horas.columns if "NATUREZA" in c.upper())
+    # identifica colunas corretas
+    col_tempo = next(c for c in df_horas.columns if "TEMPO" in c.upper())
+    col_equip = next(c for c in df_horas.columns if "EQUIPAMENTO" in c.upper())
+    col_nat = next(c for c in df_horas.columns if "NATUREZA" in c.upper())
 
-# converte horas
-df_horas["HORAS"] = df_horas[col_tempo].apply(converter_horas)
+    # converte horas
+    df_horas["HORAS"] = df_horas[col_tempo].apply(converter_horas)
 
-# limpa nome do equipamento
-df_horas[col_equip] = (
-    df_horas[col_equip]
-    .astype(str)
-    .str.strip()
-)
+    # limpa nome do equipamento
+    df_horas[col_equip] = (
+        df_horas[col_equip]
+        .astype(str)
+        .str.strip()
+                          )    
 
         df_horas = df_horas[
             ~df_horas[col_nat].str.lower().isin(["escolha um item", "escolher um item."])
@@ -235,4 +235,5 @@ df_horas[col_equip] = (
 
 else:
     st.info("Aguardando envio dos relatórios.")
+
 
