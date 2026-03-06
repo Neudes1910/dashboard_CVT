@@ -96,7 +96,7 @@ def converter_horas(valor):
         return 0
     match = re.search(r'(\d+[.,]?\d*)', str(valor).lower())
     if match:
-        return float(match.group(1).replace(",", "."))
+        return int(float(match.group(1).replace(",", ".")))
     return 0
 
 # ---------------------------------------------------------
@@ -122,7 +122,7 @@ def process_excel(file):
     ]
     for col in objetivos:
         if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
         else:
             df[col] = 0
 
@@ -191,7 +191,7 @@ if uploaded_files:
                 .reset_index(name="TOTAL OCORRÊNCIAS")
             )
             st.subheader("Ocorrências por Natureza")
-            st.dataframe(resumo.style.set_properties(**{"font-size": "16px"}), use_container_width=True)
+            st.dataframe(resumo.style.format({"TOTAL OCORRÊNCIAS": "{:d}"}).set_properties(**{"font-size": "16px"}), use_container_width=True)
 
     # ---------------------------------------------------------
     # HORAS DE INDISPONIBILIDADE POR MÊS
@@ -209,16 +209,18 @@ if uploaded_files:
             mes = row["MES"]
             df_mes = df_horas[df_horas["MES"] == mes]
             st.header(f"Horas Indisponíveis — {mes}")
-            total_horas = df_mes["HORAS"].sum()
-            st.metric("Total de Horas Indisponíveis", round(total_horas, 2))
+            total_horas = int(df_mes["HORAS"].sum())
+            st.metric("Total de Horas Indisponíveis", total_horas)
 
             horas_nat = df_mes.groupby(["PRODUTO", col_nat])["HORAS"].sum().reset_index()
+            horas_nat["HORAS"] = horas_nat["HORAS"].astype(int)
             st.subheader("Horas por Natureza")
-            st.dataframe(horas_nat.style.set_properties(**{"font-size": "16px"}), use_container_width=True)
+            st.dataframe(horas_nat.style.format({"HORAS": "{:d}"}).set_properties(**{"font-size": "16px"}), use_container_width=True)
 
             horas_eq = df_mes.groupby(["PRODUTO", col_equip])["HORAS"].sum().reset_index()
+            horas_eq["HORAS"] = horas_eq["HORAS"].astype(int)
             st.subheader("Horas por Equipamento")
-            st.dataframe(horas_eq.style.set_properties(**{"font-size": "16px"}), use_container_width=True)
+            st.dataframe(horas_eq.style.format({"HORAS": "{:d}"}).set_properties(**{"font-size": "16px"}), use_container_width=True)
 
     # ---------------------------------------------------------
     # VIAGENS POR MÊS
@@ -242,15 +244,10 @@ if uploaded_files:
             col_obj_extra = "Houveram objetivos extras? (apenas números)"
             col_obj_extra_cump = "Dos objetivos extras, quantos foram realizados? (apenas números)"
 
-            st.metric("Objetivos Traçados (total)", df_mes[col_obj_trac].sum())
-            st.metric("Objetivos Cumpridos (total)", df_mes[col_obj_cump].sum())
-            st.metric("Objetivos Extras (total)", df_mes[col_obj_extra].sum())
-            st.metric("Objetivos Extras Cumpridos (total)", df_mes[col_obj_extra_cump].sum())
+            st.metric("Objetivos Traçados (total)", int(df_mes[col_obj_trac].sum()))
+            st.metric("Objetivos Cumpridos (total)", int(df_mes[col_obj_cump].sum()))
+            st.metric("Objetivos Extras (total)", int(df_mes[col_obj_extra].sum()))
+            st.metric("Objetivos Extras Cumpridos (total)", int(df_mes[col_obj_extra_cump].sum()))
 
 else:
     st.info("Aguardando envio dos relatórios.")
-
-
-
-
-
