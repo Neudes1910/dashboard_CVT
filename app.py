@@ -6,7 +6,7 @@ import re
 
 st.set_page_config(page_title="Analisador Automático de Relatórios - CVT", layout="wide")
 st.title("Analisador Automático de Relatórios - CVT")
-st.image("https://www.google.com/imgres?q=agtech&imgurl=https%3A%2F%2Fgrupoagtech.com%2Fwp-content%2Fuploads%2F2025%2F08%2FlogoAgTech-principal.webp&imgrefurl=https%3A%2F%2Fgrupoagtech.com%2F&docid=0_QDdb42JF5L6M&tbnid=1hSMXZTzARLOqM&vet=12ahUKEwjb79nN44uTAxXIGbkGHXkCBJoQnPAOegQIFhAB..i&w=1501&h=533&hcb=2&ved=2ahUKEwjb79nN44uTAxXIGbkGHXkCBJoQnPAOegQIFhAB", caption="Logo da empresa", use_column_width=True)
+st.image("https://grupoagtech.com/", caption="Logo da empresa", use_column_width=True)
 
 uploaded_files = st.file_uploader(
     "Envie os relatórios Word ou Excel",
@@ -245,4 +245,5 @@ if uploaded_files:
 
 else:
     st.info("Aguardando envio dos relatórios.")
+
 
