@@ -26,14 +26,15 @@ def extract_text_and_tables(file):
         xml_content = doc.read("word/document.xml")
 
     root = ET.fromstring(xml_content)
+    body = root.find('w:body', NAMESPACE)  # pega apenas o corpo
 
-    # Extrai todo o texto do documento
-    for t in root.findall('.//w:t', NAMESPACE):
+    # Extrai todo o texto do corpo
+    for t in body.findall('.//w:t', NAMESPACE):
         if t.text:
             text_content.append(t.text)
 
-    # Extrai todas as tabelas
-    for tbl in root.findall('.//w:tbl', NAMESPACE):
+    # Extrai tabelas do corpo
+    for tbl in body.findall('.//w:tbl', NAMESPACE):
         table_data = []
         for row in tbl.findall('.//w:tr', NAMESPACE):
             cells = []
@@ -63,14 +64,30 @@ def extract_product(tables):
     return "Produto não identificado"
 
 # ---------------------------------------------------------
-# EXTRAIR MÊS A PARTIR DE "Data início:"
+# EXTRAIR MÊS A PARTIR DO TÍTULO DO DOCUMENTO
 # ---------------------------------------------------------
-def extrair_mes_do_texto(texto):
-    padrao = r"in[ií]cio\s*:\s*(\d{2})[./-](\d{2})[./-](\d{4})"
-    match = re.search(padrao, texto, re.IGNORECASE)
-    if match:
-        dia, mes, ano = match.groups()
-        return f"{mes}/{ano}"
+def extrair_mes_do_titulo(file):
+    """
+    Extrai a data do título do documento (docProps/core.xml).
+    Procura por padrão de data dd/mm/yyyy ou dd-mm-yyyy ou dd.mm.yyyy após 'início'.
+    """
+    try:
+        with zipfile.ZipFile(file) as doc:
+            xml_core = doc.read("docProps/core.xml")
+        root = ET.fromstring(xml_core)
+        ns = {'dc': 'http://purl.org/dc/elements/1.1/'}
+        title_node = root.find('dc:title', ns)
+        if title_node is not None and title_node.text:
+            title_text = title_node.text
+            # busca por padrão de data após "início"
+            padrao = r"in[ií]cio.*?(\d{1,2})[./-](\d{1,2})[./-](\d{4})"
+            match = re.search(padrao, title_text, re.IGNORECASE)
+            if match:
+                dia, mes, ano = match.groups()
+                mes = mes.zfill(2)
+                return f"{mes}/{ano}"
+    except Exception:
+        pass
     return "Não identificado"
 
 # ---------------------------------------------------------
@@ -113,7 +130,7 @@ if uploaded_files:
         try:
             text, tables = extract_text_and_tables(file)
             produto = extract_product(tables)
-            mes_relatorio = extrair_mes_do_texto(text)
+            mes_relatorio = extrair_mes_do_titulo(file)  # usa título do documento
 
             occ_table = find_occurrence_table(tables)
             if occ_table:
@@ -200,4 +217,3 @@ if uploaded_files:
 
 else:
     st.info("Aguardando envio dos relatórios.")
-
