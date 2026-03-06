@@ -5,7 +5,6 @@ import pandas as pd
 import re
 
 st.set_page_config(page_title="Analisador Automático de Relatórios - CVT", layout="wide")
-st.title("Analisador Automático de Relatórios - CVT")
 st.markdown("""
 <style>
 
@@ -20,6 +19,8 @@ st.markdown("""
 
 </style>
 """, unsafe_allow_html=True)
+
+st.title("Analisador Automático de Relatórios - CVT")
 
 uploaded_files = st.file_uploader(
     "Envie os relatórios Word",
@@ -268,6 +269,7 @@ if uploaded_files:
 
 else:
     st.info("Aguardando envio dos relatórios.")
+
 
 
 
