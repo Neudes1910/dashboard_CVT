@@ -144,6 +144,13 @@ if uploaded_files:
                     else:
                         df_excel["OBJETIVOS"] = 0
 
+                    # captura coluna de objetivos cumpridos
+                    cumpridos_colunas = [c for c in df_excel.columns if "Dos objetivos traçados, quantos foram cumpridos" in c]
+                    if cumpridos_colunas:
+                        df_excel["OBJETIVOS_CUMPRIDOS"] = pd.to_numeric(df_excel[cumpridos_colunas[0]], errors='coerce').fillna(0)
+                    else:
+                        df_excel["OBJETIVOS_CUMPRIDOS"] = 0
+
                     viagens.append(df_excel)
 
             else:
@@ -222,6 +229,11 @@ if uploaded_files:
         resumo_objetivos = df_viagens.groupby("MES")["OBJETIVOS"].sum().reset_index(name="TOTAL OBJETIVOS")
         st.header("Objetivos Traçados Antes das Viagens por Mês")
         st.dataframe(resumo_objetivos.style.set_properties(**{"font-size": "16px"}), use_container_width=True)
+
+        # Somatória de objetivos cumpridos
+        resumo_objetivos_cumpridos = df_viagens.groupby("MES")["OBJETIVOS_CUMPRIDOS"].sum().reset_index(name="TOTAL OBJETIVOS CUMPRIDOS")
+        st.header("Objetivos Cumpridos por Mês")
+        st.dataframe(resumo_objetivos_cumpridos.style.set_properties(**{"font-size": "16px"}), use_container_width=True)
 
 else:
     st.info("Aguardando envio dos relatórios.")
