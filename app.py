@@ -15,13 +15,13 @@ st.title("Analisador Automático de Relatórios - CVT")
 # ---------------------------------------------------------
 # Função de marca d'água via URL
 # ---------------------------------------------------------
-def set_watermark_url(image_url, opacity=0.5, size=200):
+def set_watermark_url(image_url, opacity=0.05, size=200):
     """
     Adiciona marca d'água no fundo do app Streamlit usando uma imagem da internet.
     """
     response = requests.get(image_url)
     b64 = base64.b64encode(response.content).decode()
-
+    
     st.markdown(
         f"""
         <style>
@@ -43,9 +43,10 @@ def set_watermark_url(image_url, opacity=0.5, size=200):
     )
 
 # ---------------------------------------------------------
-# Aplicar marca d'água via URL
+# Defina a URL da imagem
 # ---------------------------------------------------------
-watermark_url = ""
+set_watermark_url("https://i.imgur.com/Exemplo.png", opacity=0.05, size=200)
+
 # ---------------------------------------------------------
 # Upload de arquivos
 # ---------------------------------------------------------
@@ -141,14 +142,12 @@ def process_excel(file):
     df = pd.read_excel(file, engine="openpyxl")
     df.columns = df.columns.str.strip()
 
-    # Coluna data de ida
     if "Data de ida (poderá ser uma data futura):" in df.columns:
         df["Data de ida"] = pd.to_datetime(df["Data de ida (poderá ser uma data futura):"], errors="coerce")
         df["MES"] = df["Data de ida"].dt.strftime("%m/%Y").fillna("Não identificado")
     else:
         df["MES"] = "Não identificado"
 
-    # Objetivos
     objetivos = [
         "Quantos objetivos foram traçados antes da viagem? (apenas números)",
         "Dos objetivos traçados, quantos foram cumpridos? (apenas números)",
@@ -157,7 +156,7 @@ def process_excel(file):
     ]
     for col in objetivos:
         if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
         else:
             df[col] = 0
 
@@ -202,7 +201,9 @@ if uploaded_files:
         except Exception as e:
             st.warning(f"Erro ao processar {file.name}: {e}")
 
-    # ---------------------- OCORRÊNCIAS ----------------------
+    # ---------------------------------------------------------
+    # OCORRÊNCIAS POR MÊS
+    # ---------------------------------------------------------
     if ocorrencias:
         df_total = pd.concat(ocorrencias, ignore_index=True)
         natureza_col = [c for c in df_total.columns if "NATUREZA" in c.upper()][0]
@@ -213,14 +214,21 @@ if uploaded_files:
         df_total["MES_SORT"] = pd.to_datetime("01/" + df_total["MES"], format="%d/%m/%Y", errors="coerce")
         df_total = df_total.sort_values("MES_SORT", ascending=False)
 
-        for mes in df_total["MES"].drop_duplicates():
+        meses_ordenados = df_total.drop_duplicates(subset="MES").sort_values("MES_SORT", ascending=False)["MES"]
+        for mes in meses_ordenados:
             st.header(f"Mês: {mes}")
             df_mes = df_total[df_total["MES"] == mes]
-            resumo = df_mes.groupby(["PRODUTO", natureza_col]).size().reset_index(name="TOTAL OCORRÊNCIAS")
+            resumo = (
+                df_mes.groupby(["PRODUTO", natureza_col])
+                .size()
+                .reset_index(name="TOTAL OCORRÊNCIAS")
+            )
             st.subheader("Ocorrências por Natureza")
             st.dataframe(resumo.style.set_properties(**{"font-size": "16px"}), use_container_width=True)
 
-    # ---------------------- HORAS DE INDISPONIBILIDADE ----------------------
+    # ---------------------------------------------------------
+    # HORAS DE INDISPONIBILIDADE POR MÊS
+    # ---------------------------------------------------------
     if horas_registros:
         df_horas = pd.concat(horas_registros, ignore_index=True)
         col_nat = next(c for c in df_horas.columns if "NATUREZA" in c.upper())
@@ -229,7 +237,8 @@ if uploaded_files:
         df_horas = df_horas[~df_horas[col_nat].str.lower().isin(["escolha um item", "escolher um item."])]
         df_horas = df_horas.sort_values("MES", ascending=False)
 
-        for mes in df_horas["MES"].drop_duplicates():
+        meses_ordenados = df_horas.drop_duplicates(subset="MES").sort_values("MES", ascending=False)["MES"]
+        for mes in meses_ordenados:
             st.header(f"Horas Indisponíveis — {mes}")
             df_mes = df_horas[df_horas["MES"] == mes]
             total_horas = df_mes["HORAS"].sum()
@@ -243,13 +252,14 @@ if uploaded_files:
             st.subheader("Horas por Equipamento")
             st.dataframe(horas_eq.style.set_properties(**{"font-size": "16px"}), use_container_width=True)
 
-    # ---------------------- VIAGENS ----------------------
+    # ---------------------------------------------------------
+    # VIAGENS POR MÊS
+    # ---------------------------------------------------------
     if viagens_dados:
         df_viagens_total = pd.concat(viagens_dados, ignore_index=True)
         df_viagens_total = df_viagens_total.sort_values("MES", ascending=False)
-        meses = df_viagens_total["MES"].drop_duplicates()
-
-        for mes in meses:
+        meses_ordenados = df_viagens_total.drop_duplicates(subset="MES").sort_values("MES", ascending=False)["MES"]
+        for mes in meses_ordenados:
             st.header(f"Viagens — {mes}")
             df_mes = df_viagens_total[df_viagens_total["MES"] == mes]
 
@@ -268,9 +278,6 @@ if uploaded_files:
 
 else:
     st.info("Aguardando envio dos relatórios.")
-
-
-
 
 
 
