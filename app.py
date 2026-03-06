@@ -17,6 +17,10 @@ uploaded_files = st.file_uploader(
 NAMESPACE = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
 
 
+# ---------------------------------------------------------
+# EXTRAÇÃO DE TEXTO E TABELAS
+# ---------------------------------------------------------
+
 def extract_text_and_tables(file):
 
     text_content = []
@@ -55,22 +59,23 @@ def extract_text_and_tables(file):
     return " ".join(text_content), tables
 
 
-def extrair_produto(texto):
+# ---------------------------------------------------------
+# EXTRAIR PRODUTO
+# ---------------------------------------------------------
 
-    linhas = texto.split()
+def extract_product(text):
 
-    for i, palavra in enumerate(linhas):
+    match = re.search(r"Produto\s*:\s*(.+)", text, re.IGNORECASE)
 
-        if palavra.lower() == "produto:" or palavra.lower() == "produto":
-
-            try:
-                produto = linhas[i+1] + " " + linhas[i+2]
-                return produto.strip()
-            except:
-                return linhas[i+1]
+    if match:
+        return match.group(1).strip()
 
     return "Produto não identificado"
 
+
+# ---------------------------------------------------------
+# IDENTIFICAR TABELAS
+# ---------------------------------------------------------
 
 def find_occurrence_table(tables):
 
@@ -96,6 +101,10 @@ def find_downtime_table(tables):
     return None
 
 
+# ---------------------------------------------------------
+# CONVERSÃO DE HORAS
+# ---------------------------------------------------------
+
 def converter_horas(valor):
 
     if valor is None:
@@ -111,6 +120,10 @@ def converter_horas(valor):
     return 0
 
 
+# ---------------------------------------------------------
+# PROCESSAMENTO
+# ---------------------------------------------------------
+
 if uploaded_files:
 
     ocorrencias = []
@@ -122,7 +135,7 @@ if uploaded_files:
 
             text, tables = extract_text_and_tables(file)
 
-            produto = extrair_produto(text)
+            produto = extract_product(text)
 
             occ_table = find_occurrence_table(tables)
 
@@ -141,9 +154,10 @@ if uploaded_files:
         except Exception as e:
             st.warning(f"Erro ao processar {file.name}: {e}")
 
-    # -------------------------
-    # OCORRÊNCIAS
-    # -------------------------
+
+# ---------------------------------------------------------
+# OCORRÊNCIAS
+# ---------------------------------------------------------
 
     if ocorrencias:
 
@@ -173,15 +187,18 @@ if uploaded_files:
             x=natureza_col,
             y="Total de Ocorrências",
             color="PRODUTO",
-            barmode="group",
-            text="Total de Ocorrências"
+            text="Total de Ocorrências",
+            barmode="group"
         )
+
+        fig.update_layout(xaxis_title="Natureza", yaxis_title="Total de Ocorrências")
 
         st.plotly_chart(fig, use_container_width=True)
 
-    # -------------------------
-    # HORAS DE INDISPONIBILIDADE
-    # -------------------------
+
+# ---------------------------------------------------------
+# HORAS DE INDISPONIBILIDADE
+# ---------------------------------------------------------
 
     if horas_registros:
 
@@ -212,7 +229,10 @@ if uploaded_files:
         st.subheader("Horas Indisponíveis Totais")
         st.metric("Total de Horas", round(total_horas, 2))
 
-        # horas por natureza
+
+# ---------------------------------------------------------
+# HORAS POR NATUREZA
+# ---------------------------------------------------------
 
         horas_nat = (
             df_horas
@@ -226,14 +246,17 @@ if uploaded_files:
             x=col_nat,
             y="HORAS",
             color="PRODUTO",
-            barmode="group",
             text="HORAS",
+            barmode="group",
             title="Horas Indisponíveis por Natureza"
         )
 
         st.plotly_chart(fig2, use_container_width=True)
 
-        # horas por equipamento
+
+# ---------------------------------------------------------
+# HORAS POR EQUIPAMENTO
+# ---------------------------------------------------------
 
         horas_eq = (
             df_horas
@@ -247,13 +270,13 @@ if uploaded_files:
             x=col_equip,
             y="HORAS",
             color="PRODUTO",
-            barmode="group",
             text="HORAS",
+            barmode="group",
             title="Horas Indisponíveis por Equipamento"
         )
 
         st.plotly_chart(fig3, use_container_width=True)
 
 else:
-    st.info("Aguardando envio dos relatórios.")
 
+    st.info("Aguardando envio dos relatórios.")
