@@ -136,6 +136,14 @@ if uploaded_files:
                     )
                     df_excel = df_excel.dropna(subset=["Data de ida"])
                     df_excel["MES"] = df_excel["Data de ida"].dt.strftime("%m/%Y")
+
+                    # captura coluna de objetivos antes da viagem
+                    objetivos_colunas = [c for c in df_excel.columns if "Quantos objetivos foram traçados antes da viagem" in c]
+                    if objetivos_colunas:
+                        df_excel["OBJETIVOS"] = pd.to_numeric(df_excel[objetivos_colunas[0]], errors='coerce').fillna(0)
+                    else:
+                        df_excel["OBJETIVOS"] = 0
+
                     viagens.append(df_excel)
 
             else:
@@ -200,13 +208,20 @@ if uploaded_files:
             st.dataframe(horas_eq.style.set_properties(**{"font-size": "16px"}), use_container_width=True)
 
     # ---------------------------------------------------------
-    # VIAGENS POR MÊS (Excel)
+    # VIAGENS E OBJETIVOS POR MÊS (Excel)
     # ---------------------------------------------------------
     if viagens:
         df_viagens = pd.concat(viagens, ignore_index=True)
+
+        # Total de viagens
         resumo_viagens = df_viagens.groupby("MES").size().reset_index(name="TOTAL VIAGENS")
         st.header("Viagens Realizadas por Mês")
         st.dataframe(resumo_viagens.style.set_properties(**{"font-size": "16px"}), use_container_width=True)
+
+        # Somatória de objetivos traçados antes da viagem
+        resumo_objetivos = df_viagens.groupby("MES")["OBJETIVOS"].sum().reset_index(name="TOTAL OBJETIVOS")
+        st.header("Objetivos Traçados Antes das Viagens por Mês")
+        st.dataframe(resumo_objetivos.style.set_properties(**{"font-size": "16px"}), use_container_width=True)
 
 else:
     st.info("Aguardando envio dos relatórios.")
