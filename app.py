@@ -27,10 +27,12 @@ def extract_text_and_tables(file):
 
     root = ET.fromstring(xml_content)
 
+    # Extrai todo o texto do documento
     for t in root.findall('.//w:t', NAMESPACE):
         if t.text:
             text_content.append(t.text)
 
+    # Extrai todas as tabelas
     for tbl in root.findall('.//w:tbl', NAMESPACE):
         table_data = []
         for row in tbl.findall('.//w:tr', NAMESPACE):
@@ -61,10 +63,14 @@ def extract_product(tables):
     return "Produto não identificado"
 
 # ---------------------------------------------------------
-# EXTRAIR MÊS A PARTIR DE "Data início:"
+# EXTRAIR MÊS DO CAMPO "Data início:"
 # ---------------------------------------------------------
 def extrair_mes_do_texto(texto):
-    # Padrão principal: dd/mm/yyyy ou d/m/yyyy ou dd-mm-yyyy ou dd.mm.yyyy
+    """
+    Captura datas exclusivamente do campo 'Data início:'.
+    Aceita variações de separadores, 1 ou 2 dígitos no dia/mês e espaços extras.
+    """
+
     padrao = r"Data\s*in[ií]cio\s*[:\s]\s*(\d{1,2})[./-](\d{1,2})[./-](\d{4})"
     match = re.search(padrao, texto, re.IGNORECASE)
     if match:
@@ -72,9 +78,9 @@ def extrair_mes_do_texto(texto):
         mes = mes.zfill(2)
         return f"{mes}/{ano}"
 
-    # Fallback: qualquer data no formato dd/mm/yyyy ou d/m/yyyy
-    padrao_generico = r"(\d{1,2})[./-](\d{1,2})[./-](\d{4})"
-    match = re.search(padrao_generico, texto)
+    # fallback extremamente flexível: procura qualquer ocorrência de "Data" + "inicio" seguida de uma data
+    padrao_flex = r"data\s*in[ií]cio.*?(\d{1,2})[./-](\d{1,2})[./-](\d{4})"
+    match = re.search(padrao_flex, texto, re.IGNORECASE | re.DOTALL)
     if match:
         dia, mes, ano = match.groups()
         mes = mes.zfill(2)
