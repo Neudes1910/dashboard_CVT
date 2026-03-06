@@ -66,13 +66,9 @@ def extrair_mes_do_arquivo(file):
     """
     Extrai a data do nome do arquivo.
     Suporta formatos com separadores: ., _, -
-    Formatos:
-      d-m-yy, d-m-yyyy, dd-m-yy, dd-m-yyyy,
-      d-mm-yy, d-mm-yyyy, dd-mm-yy, dd-mm-yyyy,
-      d.m.yy, d.m.yyyy, dd.mm.yy, dd.mm.yyyy,
-      d_m_yy, d_m_yyyy, dd_m_yy, dd_m_yyyy
-      dd_mm
-    Retorna no formato MM/YYYY ou "Não identificado" se não houver ano.
+    Suporta formatos de dia/mês/ano com 1 ou 2 dígitos.
+    Se o ano não aparecer, assume 2026.
+    Retorna no formato MM/YYYY.
     """
     filename = file.name
     padrao = r'(\d{1,2})[._-](\d{1,2})(?:[._-](\d{2,4}))?'
@@ -81,7 +77,7 @@ def extrair_mes_do_arquivo(file):
         dia, mes, ano = match.groups()
         mes = mes.zfill(2)
         if ano is None:
-            ano = "Não identificado"
+            ano = "2026"
         elif len(ano) == 2:
             ano = "20" + ano
         return f"{mes}/{ano}"
@@ -126,7 +122,7 @@ if uploaded_files:
         try:
             text, tables = extract_text_and_tables(file)
             produto = extract_product(tables)
-            mes_relatorio = extrair_mes_do_arquivo(file)
+            mes_relatorio = extrair_mes_do_arquivo(file)  # aplicado para todos os casos
 
             occ_table = find_occurrence_table(tables)
             if occ_table:
@@ -139,7 +135,7 @@ if uploaded_files:
             if downtime_table:
                 df_down = pd.DataFrame(downtime_table[1:], columns=downtime_table[0])
                 df_down["PRODUTO"] = produto
-                df_down["MES"] = mes_relatorio
+                df_down["MES"] = mes_relatorio  # agora sempre preenchido
                 horas_registros.append(df_down)
 
         except Exception as e:
@@ -185,6 +181,11 @@ if uploaded_files:
         df_horas["HORAS"] = df_horas[col_tempo].apply(converter_horas)
         df_horas[col_nat] = df_horas[col_nat].astype(str).str.strip()
         df_horas = df_horas[~df_horas[col_nat].str.lower().isin(["escolha um item", "escolher um item."])]
+
+        # aplicar mes do arquivo também aqui
+        df_horas["MES"] = df_horas.get("MES", "Não identificado")  # inicializa caso não exista
+        df_horas["MES"] = df_horas["MES"].apply(lambda x: x if x != "Não identificado" else mes_relatorio)
+
         meses = sorted(df_horas["MES"].unique())
 
         for mes in meses:
