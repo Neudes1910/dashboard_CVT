@@ -176,9 +176,10 @@ if uploaded_files:
         excluir = ["escolha um item", "escolher um item."]
         df_total = df_total[~df_total[natureza_col].str.lower().isin(excluir)]
         df_total = df_total.sort_values("MES_DT", ascending=False)
-        meses = df_total[["MES", "MES_DT"]].drop_duplicates().sort_values("MES_DT", ascending=False)["MES"]
+        meses = df_total[["MES", "MES_DT"]].drop_duplicates().sort_values("MES_DT", ascending=False)
 
-        for mes in meses:
+        for _, row in meses.iterrows():
+            mes = row["MES"]
             st.header(f"Mês: {mes}")
             df_mes = df_total[df_total["MES"] == mes]
             resumo = df_mes.groupby(["PRODUTO", natureza_col]).size().reset_index(name="TOTAL OCORRÊNCIAS")
@@ -199,9 +200,10 @@ if uploaded_files:
         df_horas = df_horas[~df_horas[col_nat].str.lower().isin(["escolha um item", "escolher um item."])]
         df_horas["MES_DT"] = df_horas["MES"].apply(mes_para_datetime)
         df_horas = df_horas.sort_values("MES_DT", ascending=False)
-        meses = df_horas[["MES", "MES_DT"]].drop_duplicates().sort_values("MES_DT", ascending=False)["MES"]
+        meses = df_horas[["MES", "MES_DT"]].drop_duplicates().sort_values("MES_DT", ascending=False)
 
-        for mes in meses:
+        for _, row in meses.iterrows():
+            mes = row["MES"]
             st.header(f"Horas Indisponíveis — {mes}")
             df_mes = df_horas[df_horas["MES"] == mes]
             total_horas = df_mes["HORAS"].sum()
@@ -219,19 +221,23 @@ if uploaded_files:
     if viagens:
         df_viagens = pd.concat(viagens, ignore_index=True)
         df_viagens = df_viagens.sort_values("MES_DT", ascending=False)
-        meses = df_viagens[["MES", "MES_DT"]].drop_duplicates().sort_values("MES_DT", ascending=False)["MES"]
+        meses = df_viagens[["MES", "MES_DT"]].drop_duplicates().sort_values("MES_DT", ascending=False)
 
-        resumo_viagens = df_viagens.groupby("MES").size().reset_index(name="TOTAL VIAGENS")
-        st.header("Viagens Realizadas por Mês")
-        st.dataframe(resumo_viagens.style.set_properties(**{"font-size": "16px"}), use_container_width=True)
+        for _, row in meses.iterrows():
+            mes = row["MES"]
+            df_mes = df_viagens[df_viagens["MES"] == mes]
 
-        resumo_objetivos = df_viagens.groupby("MES")["OBJETIVOS"].sum().reset_index(name="TOTAL OBJETIVOS")
-        st.header("Objetivos Traçados Antes das Viagens por Mês")
-        st.dataframe(resumo_objetivos.style.set_properties(**{"font-size": "16px"}), use_container_width=True)
+            resumo_viagens = df_mes.shape[0]
+            st.header(f"Viagens Realizadas — {mes}")
+            st.metric("Total de Viagens", resumo_viagens)
 
-        resumo_objetivos_cumpridos = df_viagens.groupby("MES")["OBJETIVOS_CUMPRIDOS"].sum().reset_index(name="TOTAL OBJETIVOS CUMPRIDOS")
-        st.header("Objetivos Cumpridos por Mês")
-        st.dataframe(resumo_objetivos_cumpridos.style.set_properties(**{"font-size": "16px"}), use_container_width=True)
+            total_obj = df_mes["OBJETIVOS"].sum()
+            st.subheader("Objetivos Traçados Antes das Viagens")
+            st.metric("Total de Objetivos Traçados", total_obj)
+
+            total_obj_cumpridos = df_mes["OBJETIVOS_CUMPRIDOS"].sum()
+            st.subheader("Objetivos Cumpridos")
+            st.metric("Total de Objetivos Cumpridos", total_obj_cumpridos)
 
 else:
     st.info("Aguardando envio dos relatórios.")
