@@ -15,7 +15,7 @@ st.title("Analisador Automático de Relatórios - CVT")
 # ---------------------------------------------------------
 # Função de marca d'água via URL
 # ---------------------------------------------------------
-def set_watermark_url(https://grupoagtech.com/, opacity=0.5, size=200):
+def set_watermark_url(, opacity=0.5, size=200):
     """
     Adiciona marca d'água no fundo do app Streamlit usando uma imagem da internet.
     """
@@ -268,6 +268,7 @@ if uploaded_files:
 
 else:
     st.info("Aguardando envio dos relatórios.")
+
 
 
 
