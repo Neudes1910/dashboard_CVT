@@ -9,7 +9,7 @@ st.title("Analisador Automático de Relatórios - CVT")
 
 uploaded_files = st.file_uploader(
     "Envie os relatórios Word ou Excel",
-    type=None,  # aceita todos os tipos
+    type=None,
     accept_multiple_files=True
 )
 
@@ -100,6 +100,15 @@ def converter_horas(valor):
     return 0
 
 # ---------------------------------------------------------
+# CONVERSÃO DE STRING MM/YYYY PARA DATETIME
+# ---------------------------------------------------------
+def mes_para_datetime(mes_str):
+    try:
+        return pd.to_datetime(mes_str, format="%m/%Y")
+    except:
+        return pd.NaT
+
+# ---------------------------------------------------------
 # PROCESSAMENTO
 # ---------------------------------------------------------
 if uploaded_files:
@@ -137,14 +146,12 @@ if uploaded_files:
                     df_excel = df_excel.dropna(subset=["Data de ida"])
                     df_excel["MES"] = df_excel["Data de ida"].dt.strftime("%m/%Y")
 
-                    # captura coluna de objetivos antes da viagem
                     objetivos_colunas = [c for c in df_excel.columns if "Quantos objetivos foram traçados antes da viagem" in c]
                     if objetivos_colunas:
                         df_excel["OBJETIVOS"] = pd.to_numeric(df_excel[objetivos_colunas[0]], errors='coerce').fillna(0)
                     else:
                         df_excel["OBJETIVOS"] = 0
 
-                    # captura coluna de objetivos cumpridos
                     cumpridos_colunas = [c for c in df_excel.columns if "Dos objetivos traçados, quantos foram cumpridos" in c]
                     if cumpridos_colunas:
                         df_excel["OBJETIVOS_CUMPRIDOS"] = pd.to_numeric(df_excel[cumpridos_colunas[0]], errors='coerce').fillna(0)
@@ -168,17 +175,14 @@ if uploaded_files:
         df_total[natureza_col] = df_total[natureza_col].astype(str).str.strip()
         excluir = ["escolha um item", "escolher um item."]
         df_total = df_total[~df_total[natureza_col].str.lower().isin(excluir)]
-        meses = sorted(df_total["MES"].unique())
+        df_total["MES_DT"] = df_total["MES"].apply(mes_para_datetime)
+        df_total = df_total.sort_values("MES_DT")
+        meses = df_total["MES"].drop_duplicates()
 
         for mes in meses:
             st.header(f"Mês: {mes}")
             df_mes = df_total[df_total["MES"] == mes]
-            resumo = (
-                df_mes
-                .groupby(["PRODUTO", natureza_col])
-                .size()
-                .reset_index(name="TOTAL OCORRÊNCIAS")
-            )
+            resumo = df_mes.groupby(["PRODUTO", natureza_col]).size().reset_index(name="TOTAL OCORRÊNCIAS")
             st.subheader("Ocorrências por Natureza")
             st.dataframe(resumo.style.set_properties(**{"font-size": "16px"}), use_container_width=True)
 
@@ -188,28 +192,26 @@ if uploaded_files:
     if horas_registros:
         df_horas = pd.concat(horas_registros, ignore_index=True)
         df_horas.columns = df_horas.columns.str.replace("\n", " ").str.strip()
-
         col_tempo = next(c for c in df_horas.columns if "TEMPO" in c.upper())
         col_equip = next(c for c in df_horas.columns if "QUAL EQUIPAMENTO" in c.upper())
         col_nat = next(c for c in df_horas.columns if "NATUREZA" in c.upper())
-
         df_horas["HORAS"] = df_horas[col_tempo].apply(converter_horas)
         df_horas[col_nat] = df_horas[col_nat].astype(str).str.strip()
         df_horas = df_horas[~df_horas[col_nat].str.lower().isin(["escolha um item", "escolher um item."])]
         df_horas["MES"] = df_horas.get("MES", "Não identificado")
         df_horas["MES"] = df_horas["MES"].apply(lambda x: x if x != "Não identificado" else extrair_mes_do_arquivo(file))
+        df_horas["MES_DT"] = df_horas["MES"].apply(mes_para_datetime)
+        df_horas = df_horas.sort_values("MES_DT")
+        meses = df_horas["MES"].drop_duplicates()
 
-        meses = sorted(df_horas["MES"].unique())
         for mes in meses:
             st.header(f"Horas Indisponíveis — {mes}")
             df_mes = df_horas[df_horas["MES"] == mes]
             total_horas = df_mes["HORAS"].sum()
             st.metric("Total de Horas Indisponíveis", round(total_horas, 2))
-
             horas_nat = df_mes.groupby(["PRODUTO", col_nat])["HORAS"].sum().reset_index()
             st.subheader("Horas por Natureza")
             st.dataframe(horas_nat.style.set_properties(**{"font-size": "16px"}), use_container_width=True)
-
             horas_eq = df_mes.groupby(["PRODUTO", col_equip])["HORAS"].sum().reset_index()
             st.subheader("Horas por Equipamento")
             st.dataframe(horas_eq.style.set_properties(**{"font-size": "16px"}), use_container_width=True)
@@ -219,18 +221,18 @@ if uploaded_files:
     # ---------------------------------------------------------
     if viagens:
         df_viagens = pd.concat(viagens, ignore_index=True)
+        df_viagens["MES_DT"] = df_viagens["MES"].apply(mes_para_datetime)
+        df_viagens = df_viagens.sort_values("MES_DT")
+        meses = df_viagens["MES"].drop_duplicates()
 
-        # Total de viagens
         resumo_viagens = df_viagens.groupby("MES").size().reset_index(name="TOTAL VIAGENS")
         st.header("Viagens Realizadas por Mês")
         st.dataframe(resumo_viagens.style.set_properties(**{"font-size": "16px"}), use_container_width=True)
 
-        # Somatória de objetivos traçados antes da viagem
         resumo_objetivos = df_viagens.groupby("MES")["OBJETIVOS"].sum().reset_index(name="TOTAL OBJETIVOS")
         st.header("Objetivos Traçados Antes das Viagens por Mês")
         st.dataframe(resumo_objetivos.style.set_properties(**{"font-size": "16px"}), use_container_width=True)
 
-        # Somatória de objetivos cumpridos
         resumo_objetivos_cumpridos = df_viagens.groupby("MES")["OBJETIVOS_CUMPRIDOS"].sum().reset_index(name="TOTAL OBJETIVOS CUMPRIDOS")
         st.header("Objetivos Cumpridos por Mês")
         st.dataframe(resumo_objetivos_cumpridos.style.set_properties(**{"font-size": "16px"}), use_container_width=True)
