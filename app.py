@@ -178,7 +178,7 @@ if uploaded_files:
         )
 
         col_tempo = next(c for c in df_horas.columns if "TEMPO" in c.upper())
-        col_equip = next(c for c in df_horas.columns if "EQUIPAMENTO" in c.upper())
+        col_equip = next(c for c in df_horas.columns if "QUAL EQUIPAMENTO" in c.upper())
         col_nat = next(c for c in df_horas.columns if "NATUREZA" in c.upper())
 
         df_horas["HORAS"] = df_horas[col_tempo].apply(converter_horas)
@@ -246,3 +246,4 @@ if uploaded_files:
 
 else:
     st.info("Aguardando envio dos relatórios.")
+
