@@ -45,7 +45,7 @@ def set_watermark_url(image_url, opacity=0.05, size=200):
 # ---------------------------------------------------------
 # Aplicar marca d'água via URL
 # ---------------------------------------------------------
-watermark_url = "https://media.glassdoor.com/sqll/3084041/agtech-squareLogo-1636148004879.png"
+watermark_url = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQGxqJ7CkSgkq7qEwiBK7ZnEo2DbiO-J4WuNQ&s"
 # ---------------------------------------------------------
 # Upload de arquivos
 # ---------------------------------------------------------
@@ -268,4 +268,5 @@ if uploaded_files:
 
 else:
     st.info("Aguardando envio dos relatórios.")
+
 
