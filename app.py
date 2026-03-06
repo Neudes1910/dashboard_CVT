@@ -3,40 +3,54 @@ import zipfile
 import xml.etree.ElementTree as ET
 import pandas as pd
 import re
+import base64
 
-# -------------------------
-# CONFIGURAÇÃO DA PÁGINA
-# -------------------------
-st.set_page_config(
-    page_title="Analisador Automático de Relatórios - CVT",
-    layout="wide"
-)
+# ---------------------------------------------------------
+# Configurações da página
+# ---------------------------------------------------------
+st.set_page_config(page_title="Analisador Automático de Relatórios - CVT", layout="wide")
 st.title("Analisador Automático de Relatórios - CVT")
 
-# -------------------------
-# MARCA D'ÁGUA
-# -------------------------
-# URL ou base64 da imagem da marca d'água
-watermark_url = "https://exemplo.com/sua_marca_dagua.png"
+# ---------------------------------------------------------
+# Função de marca d'água automática (imagem local)
+# ---------------------------------------------------------
+def set_watermark_full("Editedimage.png", opacity=0.05):
+    """
+    Adiciona marca d'água no fundo do app Streamlit usando uma imagem local.
+    A imagem será repetida para cobrir todo o fundo.
+    """
+    with open(image_path, "rb") as f:
+        b64 = base64.b64encode(f.read()).decode()
 
-st.markdown(
-    f"""
-    <style>
-    .stApp {{
-        background-image: url("{watermark_url}");
-        background-size: 300px;      /* tamanho da marca d'água */
-        background-position: center;
-        background-repeat: no-repeat;
-        opacity: 0.1;               /* transparência */
-    }}
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+    st.markdown(
+        f"""
+        <style>
+        .stApp::before {{
+            content: "";
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background-image: url("data:image/png;base64,{b64}");
+            background-repeat: repeat;
+            background-size: 200px 200px;
+            opacity: {opacity};
+            pointer-events: none;
+            z-index: -1;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
-# -------------------------
-# UPLOAD DE ARQUIVOS
-# -------------------------
+# ---------------------------------------------------------
+# Aplica a marca d'água
+# ---------------------------------------------------------
+# Coloque sua imagem na mesma pasta do app.py e ajuste o nome
+set_watermark_full("watermark.png", opacity=0.05)
+
+# ---------------------------------------------------------
+# Upload de arquivos
+# ---------------------------------------------------------
 uploaded_files = st.file_uploader(
     "Envie os relatórios Word ou Excel",
     type=["docx", "docm", "dotm", "xlsx"],
@@ -45,9 +59,9 @@ uploaded_files = st.file_uploader(
 
 NAMESPACE = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
 
-# -------------------------
-# FUNÇÕES DE EXTRAÇÃO
-# -------------------------
+# ---------------------------------------------------------
+# Funções para Word
+# ---------------------------------------------------------
 def extract_text_and_tables(file):
     text_content = []
     tables = []
@@ -122,17 +136,46 @@ def converter_horas(valor):
         return float(match.group(1).replace(",", "."))
     return 0
 
-# -------------------------
-# PROCESSAMENTO
-# -------------------------
+# ---------------------------------------------------------
+# Função para Excel
+# ---------------------------------------------------------
+def process_excel(file):
+    df = pd.read_excel(file, engine="openpyxl")
+    df.columns = df.columns.str.strip()
+
+    # Coluna data de ida
+    if "Data de ida (poderá ser uma data futura):" in df.columns:
+        df["Data de ida"] = pd.to_datetime(df["Data de ida (poderá ser uma data futura):"], errors="coerce")
+        df["MES"] = df["Data de ida"].dt.strftime("%m/%Y").fillna("Não identificado")
+    else:
+        df["MES"] = "Não identificado"
+
+    # Objetivos
+    objetivos = [
+        "Quantos objetivos foram traçados antes da viagem? (apenas números)",
+        "Dos objetivos traçados, quantos foram cumpridos? (apenas números)",
+        "Houveram objetivos extras? (apenas números)",
+        "Dos objetivos extras, quantos foram realizados? (apenas números)"
+    ]
+    for col in objetivos:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+        else:
+            df[col] = 0
+
+    return df
+
+# ---------------------------------------------------------
+# Processamento principal
+# ---------------------------------------------------------
 if uploaded_files:
     ocorrencias = []
     horas_registros = []
-    viagens = []
+    viagens_dados = []
 
     for file in uploaded_files:
         try:
-            if file.name.endswith((".docx", ".docm", ".dotm")):
+            if file.name.endswith(("docx", "docm", "dotm")):
                 text, tables = extract_text_and_tables(file)
                 produto = extract_product(tables)
                 mes_relatorio = extrair_mes_do_arquivo(file)
@@ -149,32 +192,21 @@ if uploaded_files:
                     df_down = pd.DataFrame(downtime_table[1:], columns=downtime_table[0])
                     df_down["PRODUTO"] = produto
                     df_down["MES"] = mes_relatorio
-                    horas_registros.append(df_down)
+                    df_horas = df_down.copy()
+                    col_tempo = next(c for c in df_horas.columns if "TEMPO" in c.upper())
+                    df_horas["HORAS"] = df_horas[col_tempo].apply(converter_horas)
+                    horas_registros.append(df_horas)
 
-            elif file.name.endswith(".xlsx"):
-                df_xlsx = pd.read_excel(file, engine="openpyxl")
-                df_xlsx.columns = df_xlsx.columns.str.strip()
-
-                # extrair mês das viagens a partir da coluna Data de ida
-                df_xlsx["Data de ida"] = pd.to_datetime(df_xlsx["Data de ida (poderá ser uma data futura):"], errors='coerce')
-                df_xlsx["MES"] = df_xlsx["Data de ida"].dt.strftime("%m/%Y").fillna("Não identificado")
-
-                # objetivos traçados e cumpridos
-                df_xlsx["Objetivos traçados"] = pd.to_numeric(df_xlsx["Quantos objetivos foram traçados antes da viagem? (apenas números)"], errors='coerce').fillna(0).astype(int)
-                df_xlsx["Objetivos cumpridos"] = pd.to_numeric(df_xlsx["Dos objetivos traçados, quantos foram cumpridos? (apenas números)"], errors='coerce').fillna(0).astype(int)
-
-                # objetivos extras
-                df_xlsx["Objetivos extras"] = pd.to_numeric(df_xlsx["Houveram objetivos extras? (apenas números)"], errors='coerce').fillna(0).astype(int)
-                df_xlsx["Extras realizados"] = pd.to_numeric(df_xlsx["Dos objetivos extras, quantos foram realizados? (apenas números)"], errors='coerce').fillna(0).astype(int)
-
-                viagens.append(df_xlsx)
+            elif file.name.endswith("xlsx"):
+                df_viagens = process_excel(file)
+                viagens_dados.append(df_viagens)
 
         except Exception as e:
             st.warning(f"Erro ao processar {file.name}: {e}")
 
-    # -------------------------
-    # OCORRÊNCIAS
-    # -------------------------
+    # ---------------------------------------------------------
+    # OCORRÊNCIAS POR MÊS
+    # ---------------------------------------------------------
     if ocorrencias:
         df_total = pd.concat(ocorrencias, ignore_index=True)
         natureza_col = [c for c in df_total.columns if "NATUREZA" in c.upper()][0]
@@ -182,86 +214,72 @@ if uploaded_files:
         excluir = ["escolha um item", "escolher um item."]
         df_total = df_total[~df_total[natureza_col].str.lower().isin(excluir)]
 
-        # ordenar meses do mais recente para o mais antigo
-        df_total["MES_ORD"] = pd.to_datetime(df_total["MES"], format="%m/%Y", errors="coerce")
-        df_total = df_total.sort_values("MES_ORD", ascending=False)
+        # Ordena meses do mais recente para o mais antigo
+        df_total["MES_SORT"] = pd.to_datetime("01/" + df_total["MES"], format="%d/%m/%Y", errors="coerce")
+        df_total = df_total.sort_values("MES_SORT", ascending=False)
 
-        for mes in df_total["MES"].drop_duplicates(keep='first'):
+        for mes in df_total["MES"].drop_duplicates():
             st.header(f"Mês: {mes}")
             df_mes = df_total[df_total["MES"] == mes]
             resumo = (
-                df_mes
-                .groupby(["PRODUTO", natureza_col])
+                df_mes.groupby(["PRODUTO", natureza_col])
                 .size()
                 .reset_index(name="TOTAL OCORRÊNCIAS")
             )
             st.subheader("Ocorrências por Natureza")
             st.dataframe(resumo.style.set_properties(**{"font-size": "16px"}), use_container_width=True)
 
-    # -------------------------
-    # HORAS DE INDISPONIBILIDADE
-    # -------------------------
+    # ---------------------------------------------------------
+    # HORAS DE INDISPONIBILIDADE POR MÊS
+    # ---------------------------------------------------------
     if horas_registros:
         df_horas = pd.concat(horas_registros, ignore_index=True)
-        df_horas.columns = df_horas.columns.str.replace("\n", " ").str.strip()
-
-        col_tempo = next(c for c in df_horas.columns if "TEMPO" in c.upper())
-        col_equip = next(c for c in df_horas.columns if "QUAL EQUIPAMENTO" in c.upper())
         col_nat = next(c for c in df_horas.columns if "NATUREZA" in c.upper())
-
-        df_horas["HORAS"] = df_horas[col_tempo].apply(converter_horas)
+        col_equip = next(c for c in df_horas.columns if "QUAL EQUIPAMENTO" in c.upper())
         df_horas[col_nat] = df_horas[col_nat].astype(str).str.strip()
         df_horas = df_horas[~df_horas[col_nat].str.lower().isin(["escolha um item", "escolher um item."])]
+        df_horas = df_horas.sort_values("MES", ascending=False)
 
-        df_horas["MES"] = df_horas.get("MES", "Não identificado")
-        df_horas["MES"] = df_horas["MES"].apply(lambda x: x if x != "Não identificado" else mes_relatorio)
-
-        df_horas["MES_ORD"] = pd.to_datetime(df_horas["MES"], format="%m/%Y", errors="coerce")
-        df_horas = df_horas.sort_values("MES_ORD", ascending=False)
-
-        for mes in df_horas["MES"].drop_duplicates(keep='first'):
+        for mes in df_horas["MES"].drop_duplicates():
             st.header(f"Horas Indisponíveis — {mes}")
             df_mes = df_horas[df_horas["MES"] == mes]
             total_horas = df_mes["HORAS"].sum()
             st.metric("Total de Horas Indisponíveis", round(total_horas, 2))
 
-            horas_nat = (
-                df_mes
-                .groupby(["PRODUTO", col_nat])["HORAS"]
-                .sum()
-                .reset_index()
-            )
+            horas_nat = df_mes.groupby(["PRODUTO", col_nat])["HORAS"].sum().reset_index()
             st.subheader("Horas por Natureza")
             st.dataframe(horas_nat.style.set_properties(**{"font-size": "16px"}), use_container_width=True)
 
-            horas_eq = (
-                df_mes
-                .groupby(["PRODUTO", col_equip])["HORAS"]
-                .sum()
-                .reset_index()
-            )
+            horas_eq = df_mes.groupby(["PRODUTO", col_equip])["HORAS"].sum().reset_index()
             st.subheader("Horas por Equipamento")
             st.dataframe(horas_eq.style.set_properties(**{"font-size": "16px"}), use_container_width=True)
 
-    # -------------------------
-    # VIAGENS E OBJETIVOS
-    # -------------------------
-    if viagens:
-        df_viagens = pd.concat(viagens, ignore_index=True)
-        df_viagens["MES_ORD"] = pd.to_datetime(df_viagens["MES"], format="%m/%Y", errors="coerce")
-        df_viagens = df_viagens.sort_values("MES_ORD", ascending=False)
+    # ---------------------------------------------------------
+    # VIAGENS POR MÊS
+    # ---------------------------------------------------------
+    if viagens_dados:
+        df_viagens_total = pd.concat(viagens_dados, ignore_index=True)
+        df_viagens_total = df_viagens_total.sort_values("MES", ascending=False)
+        meses = df_viagens_total["MES"].drop_duplicates()
 
-        for mes in df_viagens["MES"].drop_duplicates(keep='first'):
+        for mes in meses:
             st.header(f"Viagens — {mes}")
-            df_mes = df_viagens[df_viagens["MES"] == mes]
+            df_mes = df_viagens_total[df_viagens_total["MES"] == mes]
 
-            st.subheader("Total de Objetivos Traçados e Cumpridos")
-            objetivos = df_mes.groupby("MES")[["Objetivos traçados", "Objetivos cumpridos"]].sum().reset_index()
-            st.dataframe(objetivos.style.set_properties(**{"font-size": "16px"}), use_container_width=True)
+            # Número de viagens
+            total_viagens = len(df_mes)
+            st.metric("Total de Viagens", total_viagens)
 
-            st.subheader("Total de Objetivos Extras e Realizados")
-            extras = df_mes.groupby("MES")[["Objetivos extras", "Extras realizados"]].sum().reset_index()
-            st.dataframe(extras.style.set_properties(**{"font-size": "16px"}), use_container_width=True)
+            # Objetivos traçados e cumpridos
+            col_obj_trac = "Quantos objetivos foram traçados antes da viagem? (apenas números)"
+            col_obj_cump = "Dos objetivos traçados, quantos foram cumpridos? (apenas números)"
+            col_obj_extra = "Houveram objetivos extras? (apenas números)"
+            col_obj_extra_cump = "Dos objetivos extras, quantos foram realizados? (apenas números)"
+
+            st.metric("Objetivos Traçados (total)", df_mes[col_obj_trac].sum())
+            st.metric("Objetivos Cumpridos (total)", df_mes[col_obj_cump].sum())
+            st.metric("Objetivos Extras (total)", df_mes[col_obj_extra].sum())
+            st.metric("Objetivos Extras Cumpridos (total)", df_mes[col_obj_extra_cump].sum())
 
 else:
     st.info("Aguardando envio dos relatórios.")
