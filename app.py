@@ -122,13 +122,14 @@ if uploaded_files:
                 text, tables = extract_text_and_tables(file)
                 produto = extract_product(tables)
                 mes_relatorio = extrair_mes_do_arquivo(file)
+                mes_dt = mes_para_datetime(mes_relatorio)
 
                 occ_table = find_occurrence_table(tables)
                 if occ_table:
                     df_occ = pd.DataFrame(occ_table[1:], columns=occ_table[0])
                     df_occ["PRODUTO"] = produto
                     df_occ["MES"] = mes_relatorio
-                    df_occ["MES_DT"] = mes_para_datetime(mes_relatorio)
+                    df_occ["MES_DT"] = mes_dt
                     ocorrencias.append(df_occ)
 
                 downtime_table = find_downtime_table(tables)
@@ -136,7 +137,7 @@ if uploaded_files:
                     df_down = pd.DataFrame(downtime_table[1:], columns=downtime_table[0])
                     df_down["PRODUTO"] = produto
                     df_down["MES"] = mes_relatorio
-                    df_down["MES_DT"] = mes_para_datetime(mes_relatorio)
+                    df_down["MES_DT"] = mes_dt
                     horas_registros.append(df_down)
 
             elif file.name.endswith('.xlsx'):
