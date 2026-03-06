@@ -9,7 +9,7 @@ st.title("Analisador Automático de Relatórios - CVT")
 
 uploaded_files = st.file_uploader(
     "Envie os relatórios Word ou Excel",
-    type=["docx", "docm", "dotm", "xlsx"],
+    type=None,  # aceita todos os tipos
     accept_multiple_files=True
 )
 
@@ -137,6 +137,9 @@ if uploaded_files:
                     df_excel = df_excel.dropna(subset=["Data de ida"])
                     df_excel["MES"] = df_excel["Data de ida"].dt.strftime("%m/%Y")
                     viagens.append(df_excel)
+
+            else:
+                st.warning(f"Arquivo não suportado: {file.name}")
 
         except Exception as e:
             st.warning(f"Erro ao processar {file.name}: {e}")
