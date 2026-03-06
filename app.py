@@ -5,8 +5,8 @@ import pandas as pd
 import plotly.express as px
 import re
 
-st.set_page_config(page_title="Dashboard HidroMeter", layout="wide")
-st.title("Análise de Ocorrências - HidroMeter Connect")
+st.set_page_config(page_title="Analisador Automático de Relatórios - CVT", layout="wide")
+st.title("Analisador Automático de Relatórios - CVT")
 
 uploaded_files = st.file_uploader(
     "Envie os relatórios Word",
@@ -123,6 +123,8 @@ if uploaded_files:
         except Exception as e:
             st.warning(f"Erro ao processar {file.name}: {e}")
 
+    # ---------------- OCORRÊNCIAS ----------------
+
     if ocorrencias:
 
         df_total = pd.concat(ocorrencias, ignore_index=True)
@@ -158,6 +160,8 @@ if uploaded_files:
 
         st.plotly_chart(fig, use_container_width=True)
 
+    # ---------------- HORAS INDISPONÍVEIS ----------------
+
     if horas_registros:
 
         df_horas = pd.concat(horas_registros, ignore_index=True)
@@ -168,6 +172,8 @@ if uploaded_files:
 
         df_horas["HORAS"] = df_horas[col_tempo].apply(converter_horas)
 
+        df_horas[col_equip] = df_horas[col_equip].astype(str).str.strip()
+
         df_horas = df_horas[
             ~df_horas[col_nat].str.lower().isin(["escolha um item", "escolher um item."])
         ]
@@ -177,6 +183,7 @@ if uploaded_files:
         st.subheader("Horas Indisponíveis Totais")
         st.metric("Total de Horas", round(total_horas, 2))
 
+        # horas por natureza
         horas_nat = (
             df_horas
             .groupby(col_nat)["HORAS"]
@@ -197,11 +204,12 @@ if uploaded_files:
 
         st.plotly_chart(fig2, use_container_width=True)
 
+        # horas por equipamento (CORRIGIDO)
         horas_eq = (
             df_horas
-            .groupby(col_equip)["HORAS"]
+            .groupby(col_equip, as_index=False)["HORAS"]
             .sum()
-            .reset_index()
+            .sort_values("HORAS", ascending=False)
         )
 
         fig3 = px.bar(
