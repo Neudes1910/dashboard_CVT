@@ -9,7 +9,7 @@ st.title("Analisador Automático de Relatórios - CVT")
 
 uploaded_files = st.file_uploader(
     "Envie os relatórios Word",
-    type=["docx", "docm", "dotm"],
+    type=["docx", "docm", "dotm","xslx"],
     accept_multiple_files=True
 )
 
@@ -214,3 +214,4 @@ if uploaded_files:
 
 else:
     st.info("Aguardando envio dos relatórios.")
+
