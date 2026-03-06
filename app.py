@@ -5,21 +5,6 @@ import pandas as pd
 import re
 
 st.set_page_config(page_title="Analisador Automático de Relatórios - CVT", layout="wide")
-st.markdown("""
-<style>
-
-[data-testid="stDataFrame"] table {
-    font-size: 60px;
-}
-
-[data-testid="stDataFrame"] th {
-    font-size: 60px;
-    font-weight: bold;
-}
-
-</style>
-""", unsafe_allow_html=True)
-
 st.title("Analisador Automático de Relatórios - CVT")
 
 uploaded_files = st.file_uploader(
@@ -74,7 +59,7 @@ def extract_text_and_tables(file):
 
 
 # ---------------------------------------------------------
-# EXTRAIR PRODUTO DIRETAMENTE DA TABELA
+# EXTRAIR PRODUTO
 # ---------------------------------------------------------
 
 def extract_product(tables):
@@ -88,9 +73,33 @@ def extract_product(tables):
                 chave = str(row[0]).strip().lower()
 
                 if chave.startswith("produto"):
-                    return str(row[1]).strip()
+
+                    produto = str(row[1]).strip()
+
+                    produto = re.sub(r"\s+", " ", produto)
+
+                    return produto
 
     return "Produto não identificado"
+
+
+# ---------------------------------------------------------
+# EXTRAIR MÊS A PARTIR DE "Data início:"
+# ---------------------------------------------------------
+
+def extrair_mes_do_texto(texto):
+
+    padrao = r"Data\s*in[ií]cio\s*:\s*(\d{2})[./-](\d{2})[./-](\d{4})"
+
+    match = re.search(padrao, texto, re.IGNORECASE)
+
+    if match:
+
+        dia, mes, ano = match.groups()
+
+        return f"{mes}/{ano}"
+
+    return "Não identificado"
 
 
 # ---------------------------------------------------------
@@ -157,26 +166,37 @@ if uploaded_files:
 
             produto = extract_product(tables)
 
+            mes_relatorio = extrair_mes_do_texto(text)
+
             occ_table = find_occurrence_table(tables)
 
             if occ_table:
+
                 df_occ = pd.DataFrame(occ_table[1:], columns=occ_table[0])
+
                 df_occ["PRODUTO"] = produto
+                df_occ["MES"] = mes_relatorio
+
                 ocorrencias.append(df_occ)
 
             downtime_table = find_downtime_table(tables)
 
             if downtime_table:
+
                 df_down = pd.DataFrame(downtime_table[1:], columns=downtime_table[0])
+
                 df_down["PRODUTO"] = produto
+                df_down["MES"] = mes_relatorio
+
                 horas_registros.append(df_down)
 
         except Exception as e:
+
             st.warning(f"Erro ao processar {file.name}: {e}")
 
 
 # ---------------------------------------------------------
-# TABELA — OCORRÊNCIAS POR NATUREZA
+# OCORRÊNCIAS POR MÊS
 # ---------------------------------------------------------
 
     if ocorrencias:
@@ -193,19 +213,33 @@ if uploaded_files:
             ~df_total[natureza_col].str.lower().isin(excluir)
         ]
 
-        resumo = (
-            df_total
-            .groupby(["PRODUTO", natureza_col])
-            .size()
-            .reset_index(name="Total de Ocorrências")
-        )
+        meses = sorted(df_total["MES"].unique())
 
-        st.subheader("Tabela - Ocorrências por Natureza")
-        st.dataframe(resumo, use_container_width=True)
+        for mes in meses:
+
+            st.header(f"Mês: {mes}")
+
+            df_mes = df_total[df_total["MES"] == mes]
+
+            resumo = (
+                df_mes
+                .groupby(["PRODUTO", natureza_col])
+                .size()
+                .reset_index(name="TOTAL OCORRÊNCIAS")
+            )
+
+            st.subheader("Ocorrências por Natureza")
+
+            st.dataframe(
+                resumo.style.set_properties(**{
+                    "font-size": "16px"
+                }),
+                use_container_width=True
+            )
 
 
 # ---------------------------------------------------------
-# HORAS DE INDISPONIBILIDADE
+# HORAS DE INDISPONIBILIDADE POR MÊS
 # ---------------------------------------------------------
 
     if horas_registros:
@@ -230,44 +264,52 @@ if uploaded_files:
             ~df_horas[col_nat].str.lower().isin(["escolha um item", "escolher um item."])
         ]
 
-        df_horas[col_equip] = df_horas[col_equip].astype(str).str.strip()
+        meses = sorted(df_horas["MES"].unique())
 
-        total_horas = df_horas["HORAS"].sum()
+        for mes in meses:
 
-        st.subheader("Horas Indisponíveis Totais")
-        st.metric("Total de Horas", round(total_horas, 2))
+            st.header(f"Horas Indisponíveis — {mes}")
 
+            df_mes = df_horas[df_horas["MES"] == mes]
 
-# ---------------------------------------------------------
-# TABELA — HORAS POR NATUREZA
-# ---------------------------------------------------------
+            total_horas = df_mes["HORAS"].sum()
 
-        horas_nat = (
-            df_horas
-            .groupby(["PRODUTO", col_nat])["HORAS"]
-            .sum()
-            .reset_index()
-        )
+            st.metric("Total de Horas Indisponíveis", round(total_horas, 2))
 
-        st.subheader("Tabela - Horas por Natureza")
-        st.dataframe(horas_nat, use_container_width=True)
+            horas_nat = (
+                df_mes
+                .groupby(["PRODUTO", col_nat])["HORAS"]
+                .sum()
+                .reset_index()
+            )
 
+            st.subheader("Horas por Natureza")
 
-# ---------------------------------------------------------
-# TABELA — HORAS POR EQUIPAMENTO
-# ---------------------------------------------------------
+            st.dataframe(
+                horas_nat.style.set_properties(**{
+                    "font-size": "16px"
+                }),
+                use_container_width=True
+            )
 
-        horas_eq = (
-            df_horas
-            .groupby(["PRODUTO", col_equip])["HORAS"]
-            .sum()
-            .reset_index()
-        )
+            horas_eq = (
+                df_mes
+                .groupby(["PRODUTO", col_equip])["HORAS"]
+                .sum()
+                .reset_index()
+            )
 
-        st.subheader("Tabela - Horas por Equipamento")
-        st.dataframe(horas_eq, use_container_width=True)
+            st.subheader("Horas por Equipamento")
+
+            st.dataframe(
+                horas_eq.style.set_properties(**{
+                    "font-size": "16px"
+                }),
+                use_container_width=True
+            )
 
 else:
+
     st.info("Aguardando envio dos relatórios.")
 
 
