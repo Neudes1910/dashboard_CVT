@@ -2,192 +2,220 @@ import streamlit as st
 import zipfile
 import xml.etree.ElementTree as ET
 import pandas as pd
+import plotly.express as px
+import re
 
-st.set_page_config(page_title="Analisador Automático de Relatórios - CVT", layout="wide")
-st.title("Analisador Automático de Relatórios - CVT")
+st.set_page_config(page_title="Dashboard HidroMeter", layout="wide")
+st.title("Análise de Ocorrências - HidroMeter Connect")
 
 uploaded_files = st.file_uploader(
-    "Envie os relatórios (.docm ou .docx)",
-    type=["docx","docm"],
+    "Envie os relatórios Word",
+    type=["docx", "docm", "dotm"],
     accept_multiple_files=True
 )
 
-
-def limpar(txt):
-    return txt.lower().replace("\n"," ").strip()
+NAMESPACE = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
 
 
-def extrair_tabelas(arquivo):
+def extract_text_and_tables(file):
 
-    with zipfile.ZipFile(arquivo) as doc:
-        xml = doc.read("word/document.xml")
+    text_content = []
+    tables = []
 
-    root = ET.fromstring(xml)
+    with zipfile.ZipFile(file) as doc:
+        xml_content = doc.read("word/document.xml")
 
-    ns = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
+    root = ET.fromstring(xml_content)
 
-    tabelas = []
+    for t in root.findall('.//w:t', NAMESPACE):
+        if t.text:
+            text_content.append(t.text)
 
-    for tbl in root.findall('.//w:tbl', ns):
+    for tbl in root.findall('.//w:tbl', NAMESPACE):
 
-        dados = []
+        table_data = []
 
-        for tr in tbl.findall('.//w:tr', ns):
+        for row in tbl.findall('.//w:tr', NAMESPACE):
 
-            linha = []
+            cells = []
 
-            for tc in tr.findall('.//w:tc', ns):
+            for cell in row.findall('.//w:tc', NAMESPACE):
 
-                textos = [t.text for t in tc.findall('.//w:t', ns) if t.text]
-                linha.append(" ".join(textos))
+                texts = [t.text for t in cell.findall('.//w:t', NAMESPACE) if t.text]
+                cell_text = " ".join(texts).strip()
 
-            dados.append(linha)
+                cells.append(cell_text)
 
-        tabelas.append(dados)
+            if cells:
+                table_data.append(cells)
 
-    return tabelas
+        if table_data:
+            tables.append(table_data)
+
+    return " ".join(text_content), tables
 
 
-def documento_tem_hidrometer(tabelas):
+def find_occurrence_table(tables):
 
-    for tabela in tabelas:
-        for linha in tabela:
-            for cel in linha:
-                if "hidrometer connect" in limpar(cel):
-                    return True
+    for table in tables:
 
-    return False
+        header = [str(x).upper() for x in table[0]]
+
+        if "NATUREZA" in header and "OCORRÊNCIA" in header:
+            return table
+
+    return None
+
+
+def find_downtime_table(tables):
+
+    for table in tables:
+
+        header = [str(x).upper() for x in table[0]]
+
+        if "POR QUANTO TEMPO?" in header and "QUAL EQUIPAMENTO?" in header:
+            return table
+
+    return None
+
+
+def converter_horas(valor):
+
+    if valor is None:
+        return 0
+
+    texto = str(valor).lower()
+
+    match = re.search(r'(\d+[.,]?\d*)', texto)
+
+    if match:
+        return float(match.group(1).replace(",", "."))
+
+    return 0
 
 
 if uploaded_files:
 
-    naturezas = []
-    indisponibilidade = []
+    ocorrencias = []
+    horas_registros = []
 
-    for arquivo in uploaded_files:
+    for file in uploaded_files:
 
         try:
-            tabelas = extrair_tabelas(arquivo)
-        except:
-            continue
 
-        if not documento_tem_hidrometer(tabelas):
-            continue
+            text, tables = extract_text_and_tables(file)
 
-        for tabela in tabelas:
-
-            if len(tabela) < 2:
+            if not re.search(r"Hidro\s*Meter\s*Connect", text, re.IGNORECASE):
                 continue
 
-            header = [limpar(c) for c in tabela[0]]
+            occ_table = find_occurrence_table(tables)
 
-            # -----------------------------
-            # TABELA DE OCORRÊNCIAS
-            # -----------------------------
+            if occ_table:
+                df_occ = pd.DataFrame(occ_table[1:], columns=occ_table[0])
+                ocorrencias.append(df_occ)
 
-            if any("natureza" in h for h in header) and any("ocorr" in h for h in header):
+            downtime_table = find_downtime_table(tables)
 
-                idx_nat = next(i for i,h in enumerate(header) if "natureza" in h)
+            if downtime_table:
+                df_down = pd.DataFrame(downtime_table[1:], columns=downtime_table[0])
+                horas_registros.append(df_down)
 
-                for row in tabela[1:]:
+        except Exception as e:
+            st.warning(f"Erro ao processar {file.name}: {e}")
 
-                    if idx_nat >= len(row):
-                        continue
+    if ocorrencias:
 
-                    nat = limpar(row[idx_nat])
+        df_total = pd.concat(ocorrencias, ignore_index=True)
 
-                    if nat in ["", "escolha um item", "escolher um item."]:
-                        continue
+        natureza_col = [c for c in df_total.columns if "NATUREZA" in c.upper()][0]
 
-                    naturezas.append(nat)
+        df_total[natureza_col] = df_total[natureza_col].astype(str).str.strip()
 
-            # -----------------------------
-            # TABELA DE HORAS
-            # -----------------------------
+        excluir = ["escolha um item", "escolher um item."]
 
-            if (
-                any("tempo" in h for h in header)
-                and any("equipamento" in h for h in header)
-            ):
+        df_total = df_total[
+            ~df_total[natureza_col].str.lower().isin(excluir)
+        ]
 
-                idx_tempo = next(i for i,h in enumerate(header) if "tempo" in h)
-                idx_eq = next(i for i,h in enumerate(header) if "equipamento" in h)
-                idx_nat = next(i for i,h in enumerate(header) if "natureza" in h)
-
-                for row in tabela[1:]:
-
-                    if max(idx_tempo, idx_eq, idx_nat) >= len(row):
-                        continue
-
-                    horas_txt = limpar(row[idx_tempo])
-                    equipamento = limpar(row[idx_eq])
-                    natureza = limpar(row[idx_nat])
-
-                    if natureza in ["", "escolha um item", "escolher um item."]:
-                        continue
-
-                    try:
-                        horas = float(horas_txt.replace(",","."))
-                    except:
-                        horas = 0
-
-                    indisponibilidade.append({
-                        "equipamento": equipamento,
-                        "natureza": natureza,
-                        "horas": horas
-                    })
-
-
-    if not naturezas and not indisponibilidade:
-
-        st.warning("Nenhum registro encontrado nos arquivos.")
-        st.stop()
-
-
-    # -----------------------------
-    # OCORRÊNCIAS POR NATUREZA
-    # -----------------------------
-
-    if naturezas:
-
-        df = pd.DataFrame({"Natureza": naturezas})
-
-        contagem = df.value_counts().reset_index()
-        contagem.columns = ["Natureza","Total"]
+        resumo = (
+            df_total
+            .groupby(natureza_col)
+            .size()
+            .reset_index(name="Total de Ocorrências")
+        )
 
         st.subheader("Total de Ocorrências por Natureza")
 
-        st.bar_chart(contagem.set_index("Natureza"))
+        fig = px.bar(
+            resumo,
+            x=natureza_col,
+            y="Total de Ocorrências",
+            text="Total de Ocorrências",
+            color=natureza_col
+        )
 
+        fig.update_layout(showlegend=False)
 
-    # -----------------------------
-    # HORAS INDISPONÍVEIS
-    # -----------------------------
+        st.plotly_chart(fig, use_container_width=True)
 
-    if indisponibilidade:
+    if horas_registros:
 
-        df = pd.DataFrame(indisponibilidade)
+        df_horas = pd.concat(horas_registros, ignore_index=True)
 
-        total = df["horas"].sum()
+        col_tempo = [c for c in df_horas.columns if "TEMPO" in c.upper()][0]
+        col_equip = [c for c in df_horas.columns if "EQUIPAMENTO" in c.upper()][0]
+        col_nat = [c for c in df_horas.columns if "NATUREZA" in c.upper()][0]
 
-        st.subheader("Total de Horas Indisponíveis")
+        df_horas["HORAS"] = df_horas[col_tempo].apply(converter_horas)
 
-        st.metric("Horas totais", round(total,2))
+        df_horas = df_horas[
+            ~df_horas[col_nat].str.lower().isin(["escolha um item", "escolher um item."])
+        ]
 
-        col1, col2 = st.columns(2)
+        total_horas = df_horas["HORAS"].sum()
 
-        horas_nat = df.groupby("natureza")["horas"].sum()
+        st.subheader("Horas Indisponíveis Totais")
+        st.metric("Total de Horas", round(total_horas, 2))
 
-        with col1:
-            st.subheader("Horas por Natureza")
-            st.bar_chart(horas_nat)
+        horas_nat = (
+            df_horas
+            .groupby(col_nat)["HORAS"]
+            .sum()
+            .reset_index()
+        )
 
-        horas_eq = df.groupby("equipamento")["horas"].sum()
+        fig2 = px.bar(
+            horas_nat,
+            x=col_nat,
+            y="HORAS",
+            text="HORAS",
+            color=col_nat,
+            title="Horas Indisponíveis por Natureza"
+        )
 
-        with col2:
-            st.subheader("Horas por Equipamento")
-            st.bar_chart(horas_eq)
+        fig2.update_layout(showlegend=False)
+
+        st.plotly_chart(fig2, use_container_width=True)
+
+        horas_eq = (
+            df_horas
+            .groupby(col_equip)["HORAS"]
+            .sum()
+            .reset_index()
+        )
+
+        fig3 = px.bar(
+            horas_eq,
+            x=col_equip,
+            y="HORAS",
+            text="HORAS",
+            color=col_equip,
+            title="Horas Indisponíveis por Equipamento"
+        )
+
+        fig3.update_layout(showlegend=False)
+
+        st.plotly_chart(fig3, use_container_width=True)
 
 else:
-
-    st.info("Envie os relatórios para análise.")
+    st.info("Aguardando envio dos relatórios.")
