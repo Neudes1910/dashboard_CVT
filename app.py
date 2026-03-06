@@ -46,7 +46,7 @@ def set_watermark_full(image_path, opacity=0.3, size=200):
 # Aplica a marca d'água
 # ---------------------------------------------------------
 # Coloque sua imagem na mesma pasta do app.py e ajuste o nome
-set_watermark_full("Editedimage.png", opacity=0.3, size=200)
+set_watermark_full("image (2).png", opacity=0.3, size=200)
 
 # ---------------------------------------------------------
 # Upload de arquivos
@@ -283,6 +283,7 @@ if uploaded_files:
 
 else:
     st.info("Aguardando envio dos relatórios.")
+
 
 
 
