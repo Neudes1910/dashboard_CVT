@@ -66,6 +66,7 @@ def extrair_mes_do_titulo(file):
     """
     Extrai a data do título do documento (docProps/core.xml).
     Suporta formatos: dd.mm.yyyy, dd_mm_yyyy, d.m.yy, d_m_yy, dd_mm
+    Retorna no formato MM/YYYY ou "Não identificado" se não houver ano.
     """
     try:
         with zipfile.ZipFile(file) as doc:
@@ -76,22 +77,15 @@ def extrair_mes_do_titulo(file):
         if title_node is not None and title_node.text:
             title_text = title_node.text
 
-            # Regex abrangente para datas
-            padrao = r"""
-                (?:(?:in[ií]cio)[:_\s]*)?   # opcional "início" seguido de :, _, ou espaço
-                (\d{1,2})                    # dia
-                [._]                          # separador
-                (\d{1,2})                     # mês
-                (?:[._](\d{2,4}))?            # opcional ano
-            """
-            match = re.search(padrao, title_text, re.IGNORECASE | re.VERBOSE)
+            # Regex flexível para capturar qualquer data
+            padrao = r'(\d{1,2})[._](\d{1,2})(?:[._](\d{2,4}))?'
+            match = re.search(padrao, title_text)
             if match:
                 dia, mes, ano = match.groups()
                 mes = mes.zfill(2)
                 if ano is None:
                     ano = "Não identificado"
                 elif len(ano) == 2:
-                    # converte yy para yyyy assumindo século 2000
                     ano = "20" + ano
                 return f"{mes}/{ano}"
     except Exception:
