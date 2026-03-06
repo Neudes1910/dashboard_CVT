@@ -14,7 +14,7 @@ st.markdown("""
 }
 
 [data-testid="stDataFrame"] th {
-    font-size: 20px;
+    font-size: 24px;
     font-weight: bold;
 }
 
@@ -268,5 +268,6 @@ if uploaded_files:
 
 else:
     st.info("Aguardando envio dos relatórios.")
+
 
 
