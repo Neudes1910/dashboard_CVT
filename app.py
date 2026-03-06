@@ -57,10 +57,17 @@ def extract_text_and_tables(file):
 
 def extrair_produto(texto):
 
-    match = re.search(r'Produto\s*[-–—]*\s*(.+)', texto, re.IGNORECASE)
+    linhas = texto.split()
 
-    if match:
-        return match.group(1).strip()
+    for i, palavra in enumerate(linhas):
+
+        if palavra.lower() == "produto:" or palavra.lower() == "produto":
+
+            try:
+                produto = linhas[i+1] + " " + linhas[i+2]
+                return produto.strip()
+            except:
+                return linhas[i+1]
 
     return "Produto não identificado"
 
@@ -249,3 +256,4 @@ if uploaded_files:
 
 else:
     st.info("Aguardando envio dos relatórios.")
+
