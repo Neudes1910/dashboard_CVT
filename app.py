@@ -5,8 +5,8 @@ import pandas as pd
 import plotly.express as px
 import re
 
-st.set_page_config(page_title="Dashboard HidroMeter", layout="wide")
-st.title("Análise de Ocorrências - HidroMeter Connect")
+st.set_page_config(page_title="Analisador Automático de Relatórios - CVT", layout="wide")
+st.title("Analisador Automático de Relatórios - CVT")
 
 uploaded_files = st.file_uploader(
     "Envie os relatórios Word",
@@ -123,6 +123,10 @@ if uploaded_files:
         except Exception as e:
             st.warning(f"Erro ao processar {file.name}: {e}")
 
+    # -------------------------
+    # OCORRÊNCIAS POR NATUREZA
+    # -------------------------
+
     if ocorrencias:
 
         df_total = pd.concat(ocorrencias, ignore_index=True)
@@ -158,40 +162,45 @@ if uploaded_files:
 
         st.plotly_chart(fig, use_container_width=True)
 
+    # -------------------------
+    # HORAS DE INDISPONIBILIDADE
+    # -------------------------
+
     if horas_registros:
 
         df_horas = pd.concat(horas_registros, ignore_index=True)
 
-        # limpa nomes das colunas (Word costuma inserir quebras de linha)
+        # limpa nomes de colunas (Word costuma quebrar linhas)
         df_horas.columns = (
             df_horas.columns
             .str.replace("\n", " ")
             .str.strip()
-                           )        
+        )
 
-    # identifica colunas corretas
-    col_tempo = next(c for c in df_horas.columns if "TEMPO" in c.upper())
-    col_equip = next(c for c in df_horas.columns if "EQUIPAMENTO" in c.upper())
-    col_nat = next(c for c in df_horas.columns if "NATUREZA" in c.upper())
+        col_tempo = next(c for c in df_horas.columns if "TEMPO" in c.upper())
+        col_equip = next(c for c in df_horas.columns if "EQUIPAMENTO" in c.upper())
+        col_nat = next(c for c in df_horas.columns if "NATUREZA" in c.upper())
 
-    # converte horas
-    df_horas["HORAS"] = df_horas[col_tempo].apply(converter_horas)
+        df_horas["HORAS"] = df_horas[col_tempo].apply(converter_horas)
 
-    # limpa nome do equipamento
-    df_horas[col_equip] = (
-        df_horas[col_equip]
-        .astype(str)
-        .str.strip()
-                          )    
+        df_horas[col_nat] = df_horas[col_nat].astype(str).str.strip()
 
         df_horas = df_horas[
             ~df_horas[col_nat].str.lower().isin(["escolha um item", "escolher um item."])
         ]
 
+        df_horas[col_equip] = (
+            df_horas[col_equip]
+            .astype(str)
+            .str.strip()
+        )
+
         total_horas = df_horas["HORAS"].sum()
 
         st.subheader("Horas Indisponíveis Totais")
         st.metric("Total de Horas", round(total_horas, 2))
+
+        # horas por natureza
 
         horas_nat = (
             df_horas
@@ -212,6 +221,8 @@ if uploaded_files:
         fig2.update_layout(showlegend=False)
 
         st.plotly_chart(fig2, use_container_width=True)
+
+        # horas por equipamento
 
         horas_eq = (
             df_horas
@@ -235,5 +246,3 @@ if uploaded_files:
 
 else:
     st.info("Aguardando envio dos relatórios.")
-
-
