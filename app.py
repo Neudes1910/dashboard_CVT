@@ -151,11 +151,17 @@ if uploaded_files:
                     df_excel["MES"] = df_excel["Data de ida"].dt.strftime("%m/%Y")
                     df_excel["MES_DT"] = pd.to_datetime(df_excel["MES"], format="%m/%Y")
 
+                    # Objetivos traçados e cumpridos
                     objetivos_colunas = [c for c in df_excel.columns if "Quantos objetivos foram traçados antes da viagem" in c]
                     df_excel["OBJETIVOS"] = pd.to_numeric(df_excel[objetivos_colunas[0]], errors='coerce').fillna(0).astype(int) if objetivos_colunas else 0
-
                     cumpridos_colunas = [c for c in df_excel.columns if "Dos objetivos traçados, quantos foram cumpridos" in c]
                     df_excel["OBJETIVOS_CUMPRIDOS"] = pd.to_numeric(df_excel[cumpridos_colunas[0]], errors='coerce').fillna(0).astype(int) if cumpridos_colunas else 0
+
+                    # Objetivos extras traçados e realizados
+                    extras_col = [c for c in df_excel.columns if "Houveram objetivos extras" in c]
+                    df_excel["OBJETIVOS_EXTRAS"] = pd.to_numeric(df_excel[extras_col[0]], errors='coerce').fillna(0).astype(int) if extras_col else 0
+                    realizados_col = [c for c in df_excel.columns if "Dos objetivos extras, quantos foram realizados" in c]
+                    df_excel["OBJETIVOS_EXTRAS_CUMPRIDOS"] = pd.to_numeric(df_excel[realizados_col[0]], errors='coerce').fillna(0).astype(int) if realizados_col else 0
 
                     viagens.append(df_excel)
 
@@ -233,6 +239,8 @@ if uploaded_files:
             st.metric("Total de Viagens", int(df_mes.shape[0]))
             st.metric("Total de Objetivos Traçados", int(df_mes["OBJETIVOS"].sum()))
             st.metric("Total de Objetivos Cumpridos", int(df_mes["OBJETIVOS_CUMPRIDOS"].sum()))
+            st.metric("Total de Objetivos Extras", int(df_mes["OBJETIVOS_EXTRAS"].sum()))
+            st.metric("Total de Objetivos Extras Cumpridos", int(df_mes["OBJETIVOS_EXTRAS_CUMPRIDOS"].sum()))
 
 else:
     st.info("Aguardando envio dos relatórios.")
