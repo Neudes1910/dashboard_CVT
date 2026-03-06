@@ -60,15 +60,21 @@ def extract_text_and_tables(file):
 
 
 # ---------------------------------------------------------
-# EXTRAIR PRODUTO
+# EXTRAIR PRODUTO DIRETAMENTE DA TABELA
 # ---------------------------------------------------------
 
-def extract_product(text):
+def extract_product(tables):
 
-    match = re.search(r"Produto\s*:\s*(.+)", text, re.IGNORECASE)
+    for table in tables:
 
-    if match:
-        return match.group(1).strip()
+        for row in table:
+
+            if len(row) >= 2:
+
+                chave = str(row[0]).strip().lower()
+
+                if chave.startswith("produto"):
+                    return str(row[1]).strip()
 
     return "Produto não identificado"
 
@@ -135,7 +141,7 @@ if uploaded_files:
 
             text, tables = extract_text_and_tables(file)
 
-            produto = extract_product(text)
+            produto = extract_product(tables)
 
             occ_table = find_occurrence_table(tables)
 
@@ -156,7 +162,7 @@ if uploaded_files:
 
 
 # ---------------------------------------------------------
-# OCORRÊNCIAS
+# OCORRÊNCIAS POR NATUREZA
 # ---------------------------------------------------------
 
     if ocorrencias:
@@ -278,5 +284,4 @@ if uploaded_files:
         st.plotly_chart(fig3, use_container_width=True)
 
 else:
-
     st.info("Aguardando envio dos relatórios.")
