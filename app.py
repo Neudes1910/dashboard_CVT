@@ -167,6 +167,14 @@ if uploaded_files:
             st.warning(f"Erro ao processar {file.name}: {e}")
 
     # ---------------------------------------------------------
+    # FUNÇÃO AUXILIAR PARA OBTER MESES ORDENADOS MAIS RECENTE → MAIS ANTIGO
+    # ---------------------------------------------------------
+    def obter_meses_ordenados(df):
+        df_meses = df[["MES", "MES_DT"]].drop_duplicates()
+        df_meses = df_meses.sort_values("MES_DT", ascending=False)
+        return df_meses
+
+    # ---------------------------------------------------------
     # OCORRÊNCIAS POR MÊS
     # ---------------------------------------------------------
     if ocorrencias:
@@ -176,12 +184,11 @@ if uploaded_files:
         excluir = ["escolha um item", "escolher um item."]
         df_total = df_total[~df_total[natureza_col].str.lower().isin(excluir)]
         df_total = df_total.sort_values("MES_DT", ascending=False)
-        meses = df_total[["MES", "MES_DT"]].drop_duplicates().sort_values("MES_DT", ascending=False)
 
-        for _, row in meses.iterrows():
+        for _, row in obter_meses_ordenados(df_total).iterrows():
             mes = row["MES"]
-            st.header(f"Mês: {mes}")
             df_mes = df_total[df_total["MES"] == mes]
+            st.header(f"Mês: {mes}")
             resumo = df_mes.groupby(["PRODUTO", natureza_col]).size().reset_index(name="TOTAL OCORRÊNCIAS")
             st.subheader("Ocorrências por Natureza")
             st.dataframe(resumo.style.set_properties(**{"font-size": "16px"}), use_container_width=True)
@@ -193,19 +200,18 @@ if uploaded_files:
         df_horas = pd.concat(horas_registros, ignore_index=True)
         df_horas.columns = df_horas.columns.str.replace("\n", " ").str.strip()
         col_tempo = next(c for c in df_horas.columns if "TEMPO" in c.upper())
-        col_equip = next(c for c in df_horas.columns if "QUAL EQUIPAMENTO" in c.upper())
+        col_equip = next(c for c in df_horas.columns if "QUAL EQUIPAMENTO?" in c.upper())
         col_nat = next(c for c in df_horas.columns if "NATUREZA" in c.upper())
         df_horas["HORAS"] = df_horas[col_tempo].apply(converter_horas)
         df_horas[col_nat] = df_horas[col_nat].astype(str).str.strip()
         df_horas = df_horas[~df_horas[col_nat].str.lower().isin(["escolha um item", "escolher um item."])]
         df_horas["MES_DT"] = df_horas["MES"].apply(mes_para_datetime)
         df_horas = df_horas.sort_values("MES_DT", ascending=False)
-        meses = df_horas[["MES", "MES_DT"]].drop_duplicates().sort_values("MES_DT", ascending=False)
 
-        for _, row in meses.iterrows():
+        for _, row in obter_meses_ordenados(df_horas).iterrows():
             mes = row["MES"]
-            st.header(f"Horas Indisponíveis — {mes}")
             df_mes = df_horas[df_horas["MES"] == mes]
+            st.header(f"Horas Indisponíveis — {mes}")
             total_horas = df_mes["HORAS"].sum()
             st.metric("Total de Horas Indisponíveis", round(total_horas, 2))
             horas_nat = df_mes.groupby(["PRODUTO", col_nat])["HORAS"].sum().reset_index()
@@ -221,9 +227,8 @@ if uploaded_files:
     if viagens:
         df_viagens = pd.concat(viagens, ignore_index=True)
         df_viagens = df_viagens.sort_values("MES_DT", ascending=False)
-        meses = df_viagens[["MES", "MES_DT"]].drop_duplicates().sort_values("MES_DT", ascending=False)
 
-        for _, row in meses.iterrows():
+        for _, row in obter_meses_ordenados(df_viagens).iterrows():
             mes = row["MES"]
             df_mes = df_viagens[df_viagens["MES"] == mes]
 
@@ -241,3 +246,4 @@ if uploaded_files:
 
 else:
     st.info("Aguardando envio dos relatórios.")
+
