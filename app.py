@@ -7,81 +7,85 @@ st.set_page_config(page_title="Analisador Automático de Relatórios - CVT", lay
 st.title("Analisador Automático de Relatórios - CVT")
 
 uploaded_files = st.file_uploader(
-    "Envie os relatórios CVT (.docx ou .docm)",
+    "Envie os relatórios (.docx ou .docm)",
     type=["docx","docm"],
     accept_multiple_files=True
 )
 
-def documento_tem_hidrometer(doc):
+
+def limpar(txt):
+    return txt.lower().replace("\n"," ").strip()
+
+
+def tem_hidrometer(doc):
+
     for p in doc.paragraphs:
-        if "hidrometer connect" in p.text.lower():
+        if "hidrometer connect" in limpar(p.text):
             return True
 
-    for tabela in doc.tables:
-        for linha in tabela.rows:
-            for cel in linha.cells:
-                if "hidrometer connect" in cel.text.lower():
+    for t in doc.tables:
+        for r in t.rows:
+            for c in r.cells:
+                if "hidrometer connect" in limpar(c.text):
                     return True
+
     return False
 
 
-def encontrar_tabela_ocorrencias(doc):
+def extrair_ocorrencias(doc):
+
+    lista = []
 
     for tabela in doc.tables:
 
-        cabecalho = [c.text.strip().upper() for c in tabela.rows[0].cells]
+        header = [limpar(c.text) for c in tabela.rows[0].cells]
 
-        if "NATUREZA" in cabecalho and "OCORRÊNCIA" in cabecalho:
+        if any("natureza" in h for h in header) and any("ocorr" in h for h in header):
 
-            idx_natureza = cabecalho.index("NATUREZA")
+            idx_nat = next(i for i,h in enumerate(header) if "natureza" in h)
 
-            registros = []
+            for row in tabela.rows[1:]:
 
-            for linha in tabela.rows[1:]:
+                natureza = limpar(row.cells[idx_nat].text)
 
-                natureza = linha.cells[idx_natureza].text.strip()
+                if natureza in ["", "escolha um item", "escolher um item."]:
+                    continue
 
-                if natureza and natureza.lower() not in [
-                    "escolha um item",
-                    "escolher um item."
-                ]:
-                    registros.append(natureza)
+                lista.append(natureza)
 
-            return registros
-
-    return []
+    return lista
 
 
-def encontrar_tabela_indisponibilidade(doc):
+def extrair_indisponibilidade(doc):
 
     registros = []
 
     for tabela in doc.tables:
 
-        cabecalho = [c.text.strip().upper() for c in tabela.rows[0].cells]
+        header = [limpar(c.text) for c in tabela.rows[0].cells]
 
-        if "POR QUANTO TEMPO?" in cabecalho and "QUAL EQUIPAMENTO?" in cabecalho:
+        if (
+            any("tempo" in h for h in header) and
+            any("equipamento" in h for h in header)
+        ):
 
-            idx_horas = cabecalho.index("POR QUANTO TEMPO?")
-            idx_equip = cabecalho.index("QUAL EQUIPAMENTO?")
-            idx_nat = cabecalho.index("NATUREZA")
+            idx_horas = next(i for i,h in enumerate(header) if "tempo" in h)
+            idx_equip = next(i for i,h in enumerate(header) if "equipamento" in h)
+            idx_nat = next(i for i,h in enumerate(header) if "natureza" in h)
 
-            for linha in tabela.rows[1:]:
+            for row in tabela.rows[1:]:
 
-                horas_txt = linha.cells[idx_horas].text.strip()
-                equipamento = linha.cells[idx_equip].text.strip()
-                natureza = linha.cells[idx_nat].text.strip()
+                horas_txt = limpar(row.cells[idx_horas].text)
+                equipamento = limpar(row.cells[idx_equip].text)
+                natureza = limpar(row.cells[idx_nat].text)
+
+                if natureza in ["", "escolha um item", "escolher um item."]:
+                    continue
 
                 try:
                     horas = float(horas_txt.replace(",","."))
                 except:
                     horas = 0
-
-                if natureza.lower() in [
-                    "escolha um item",
-                    "escolher um item."
-                ]:
-                    continue
 
                 registros.append({
                     "equipamento": equipamento,
@@ -104,11 +108,11 @@ if uploaded_files:
         except:
             continue
 
-        if not documento_tem_hidrometer(doc):
+        if not tem_hidrometer(doc):
             continue
 
-        ocorrencias += encontrar_tabela_ocorrencias(doc)
-        indisponibilidades += encontrar_tabela_indisponibilidade(doc)
+        ocorrencias += extrair_ocorrencias(doc)
+        indisponibilidades += extrair_indisponibilidade(doc)
 
     if not ocorrencias and not indisponibilidades:
         st.warning("Nenhum registro encontrado nos arquivos.")
@@ -116,50 +120,36 @@ if uploaded_files:
 
     col1, col2 = st.columns(2)
 
-    # -------- OCORRÊNCIAS --------
-
     if ocorrencias:
 
-        df_oc = pd.DataFrame({"Natureza": ocorrencias})
+        df = pd.DataFrame({"Natureza": ocorrencias})
 
-        contagem_nat = df_oc.value_counts().reset_index()
-        contagem_nat.columns = ["Natureza","Total"]
+        contagem = df.value_counts().reset_index()
+        contagem.columns = ["Natureza","Total"]
 
         with col1:
             st.subheader("Total de Ocorrências por Natureza")
-            st.bar_chart(contagem_nat.set_index("Natureza"))
-
-    # -------- INDISPONIBILIDADE --------
+            st.bar_chart(contagem.set_index("Natureza"))
 
     if indisponibilidades:
 
-        df_ind = pd.DataFrame(indisponibilidades)
+        df = pd.DataFrame(indisponibilidades)
 
-        total_horas = df_ind["horas"].sum()
+        total_horas = df["horas"].sum()
 
         st.subheader("Total de Horas Indisponíveis")
         st.metric("Horas totais", round(total_horas,2))
 
         col3, col4 = st.columns(2)
 
-        # horas por natureza
-
-        horas_nat = df_ind.groupby("natureza")["horas"].sum().reset_index()
+        horas_nat = df.groupby("natureza")["horas"].sum()
 
         with col3:
-            st.subheader("Horas Indisponíveis por Natureza")
-            st.bar_chart(horas_nat.set_index("natureza"))
+            st.subheader("Horas por Natureza")
+            st.bar_chart(horas_nat)
 
-        # horas por equipamento (CORRETO)
-
-        horas_eq = df_ind.groupby("equipamento")["horas"].sum().reset_index()
+        horas_eq = df.groupby("equipamento")["horas"].sum()
 
         with col4:
-            st.subheader("Horas Indisponíveis por Equipamento")
-            st.bar_chart(horas_eq.set_index("equipamento"))
-
-        st.plotly_chart(fig3, use_container_width=True)
-
-else:
-    st.info("Aguardando envio dos relatórios.")
-
+            st.subheader("Horas por Equipamento")
+            st.bar_chart(horas_eq)
