@@ -60,36 +60,25 @@ def extract_product(tables):
     return "Produto não identificado"
 
 # ---------------------------------------------------------
-# EXTRAIR MÊS A PARTIR DO TÍTULO DO DOCUMENTO
+# EXTRAIR MÊS A PARTIR DO NOME DO ARQUIVO
 # ---------------------------------------------------------
-def extrair_mes_do_titulo(file):
+def extrair_mes_do_arquivo(file):
     """
-    Extrai a data do título do documento (docProps/core.xml).
+    Extrai a data do nome do arquivo.
     Suporta formatos: dd.mm.yyyy, dd_mm_yyyy, d.m.yy, d_m_yy, dd_mm
     Retorna no formato MM/YYYY ou "Não identificado" se não houver ano.
     """
-    try:
-        with zipfile.ZipFile(file) as doc:
-            xml_core = doc.read("docProps/core.xml")
-        root = ET.fromstring(xml_core)
-        ns = {'dc': 'http://purl.org/dc/elements/1.1/'}
-        title_node = root.find('dc:title', ns)
-        if title_node is not None and title_node.text:
-            title_text = title_node.text
-
-            # Regex flexível para capturar qualquer data
-            padrao = r'(\d{1,2})[._](\d{1,2})(?:[._](\d{2,4}))?'
-            match = re.search(padrao, title_text)
-            if match:
-                dia, mes, ano = match.groups()
-                mes = mes.zfill(2)
-                if ano is None:
-                    ano = "Não identificado"
-                elif len(ano) == 2:
-                    ano = "20" + ano
-                return f"{mes}/{ano}"
-    except Exception:
-        pass
+    filename = file.name
+    padrao = r'(\d{1,2})[._](\d{1,2})(?:[._](\d{2,4}))?'
+    match = re.search(padrao, filename)
+    if match:
+        dia, mes, ano = match.groups()
+        mes = mes.zfill(2)
+        if ano is None:
+            ano = "Não identificado"
+        elif len(ano) == 2:
+            ano = "20" + ano
+        return f"{mes}/{ano}"
     return "Não identificado"
 
 # ---------------------------------------------------------
@@ -131,7 +120,7 @@ if uploaded_files:
         try:
             text, tables = extract_text_and_tables(file)
             produto = extract_product(tables)
-            mes_relatorio = extrair_mes_do_titulo(file)
+            mes_relatorio = extrair_mes_do_arquivo(file)
 
             occ_table = find_occurrence_table(tables)
             if occ_table:
