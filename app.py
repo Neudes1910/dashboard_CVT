@@ -148,6 +148,7 @@ if uploaded_files:
                     df_occ = pd.DataFrame(occ_table[1:], columns=occ_table[0])
                     df_occ["PRODUTO"] = produto
                     df_occ["MES"] = mes_relatorio
+                    df_occ["MES_SORT"] = pd.to_datetime("01/" + df_occ["MES"], format="%d/%m/%Y", errors="coerce")
                     ocorrencias.append(df_occ)
 
                 downtime_table = find_downtime_table(tables)
@@ -155,13 +156,14 @@ if uploaded_files:
                     df_down = pd.DataFrame(downtime_table[1:], columns=downtime_table[0])
                     df_down["PRODUTO"] = produto
                     df_down["MES"] = mes_relatorio
-                    df_horas = df_down.copy()
-                    col_tempo = next(c for c in df_horas.columns if "TEMPO" in c.upper())
-                    df_horas["HORAS"] = df_horas[col_tempo].apply(converter_horas)
-                    horas_registros.append(df_horas)
+                    df_down["MES_SORT"] = pd.to_datetime("01/" + df_down["MES"], format="%d/%m/%Y", errors="coerce")
+                    col_tempo = next(c for c in df_down.columns if "TEMPO" in c.upper())
+                    df_down["HORAS"] = df_down[col_tempo].apply(converter_horas)
+                    horas_registros.append(df_down)
 
             elif file.name.endswith("xlsx"):
                 df_viagens = process_excel(file)
+                df_viagens["MES_SORT"] = pd.to_datetime("01/" + df_viagens["MES"], format="%d/%m/%Y", errors="coerce")
                 viagens_dados.append(df_viagens)
 
         except Exception as e:
@@ -177,13 +179,12 @@ if uploaded_files:
         excluir = ["escolha um item", "escolher um item."]
         df_total = df_total[~df_total[natureza_col].str.lower().isin(excluir)]
 
-        # Ordena meses do mais recente para o mais antigo
-        df_total["MES_SORT"] = pd.to_datetime("01/" + df_total["MES"], format="%d/%m/%Y", errors="coerce")
-        df_total = df_total.sort_values("MES_SORT", ascending=False)
+        meses_ordenados = df_total[["MES", "MES_SORT"]].drop_duplicates().sort_values("MES_SORT", ascending=False)
 
-        for mes in df_total["MES"].drop_duplicates():
-            st.header(f"Mês: {mes}")
+        for _, row in meses_ordenados.iterrows():
+            mes = row["MES"]
             df_mes = df_total[df_total["MES"] == mes]
+            st.header(f"Mês: {mes}")
             resumo = (
                 df_mes.groupby(["PRODUTO", natureza_col])
                 .size()
@@ -201,11 +202,13 @@ if uploaded_files:
         col_equip = next(c for c in df_horas.columns if "QUAL EQUIPAMENTO" in c.upper())
         df_horas[col_nat] = df_horas[col_nat].astype(str).str.strip()
         df_horas = df_horas[~df_horas[col_nat].str.lower().isin(["escolha um item", "escolher um item."])]
-        df_horas = df_horas.sort_values("MES", ascending=False)
 
-        for mes in df_horas["MES"].drop_duplicates():
-            st.header(f"Horas Indisponíveis — {mes}")
+        meses_ordenados = df_horas[["MES", "MES_SORT"]].drop_duplicates().sort_values("MES_SORT", ascending=False)
+
+        for _, row in meses_ordenados.iterrows():
+            mes = row["MES"]
             df_mes = df_horas[df_horas["MES"] == mes]
+            st.header(f"Horas Indisponíveis — {mes}")
             total_horas = df_mes["HORAS"].sum()
             st.metric("Total de Horas Indisponíveis", round(total_horas, 2))
 
@@ -222,12 +225,12 @@ if uploaded_files:
     # ---------------------------------------------------------
     if viagens_dados:
         df_viagens_total = pd.concat(viagens_dados, ignore_index=True)
-        df_viagens_total = df_viagens_total.sort_values("MES", ascending=False)
-        meses = df_viagens_total["MES"].drop_duplicates()
+        meses_ordenados = df_viagens_total[["MES", "MES_SORT"]].drop_duplicates().sort_values("MES_SORT", ascending=False)
 
-        for mes in meses:
-            st.header(f"Viagens — {mes}")
+        for _, row in meses_ordenados.iterrows():
+            mes = row["MES"]
             df_mes = df_viagens_total[df_viagens_total["MES"] == mes]
+            st.header(f"Viagens — {mes}")
 
             # Número de viagens
             total_viagens = len(df_mes)
