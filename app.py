@@ -96,7 +96,7 @@ def converter_horas(valor):
         return 0
     match = re.search(r'(\d+[.,]?\d*)', str(valor).lower())
     if match:
-        return float(match.group(1).replace(",", "."))
+        return int(float(match.group(1).replace(",", ".")))
     return 0
 
 # ---------------------------------------------------------
@@ -138,6 +138,7 @@ if uploaded_files:
                     df_down["PRODUTO"] = produto
                     df_down["MES"] = mes_relatorio
                     df_down["MES_DT"] = mes_dt
+                    df_down["HORAS"] = df_down.iloc[:,0].apply(converter_horas)
                     horas_registros.append(df_down)
 
             elif file.name.endswith('.xlsx'):
@@ -150,13 +151,11 @@ if uploaded_files:
                     df_excel["MES"] = df_excel["Data de ida"].dt.strftime("%m/%Y")
                     df_excel["MES_DT"] = pd.to_datetime(df_excel["MES"], format="%m/%Y")
 
-                    # Objetivos traçados
                     objetivos_colunas = [c for c in df_excel.columns if "Quantos objetivos foram traçados antes da viagem" in c]
-                    df_excel["OBJETIVOS"] = pd.to_numeric(df_excel[objetivos_colunas[0]], errors='coerce').fillna(0) if objetivos_colunas else 0
+                    df_excel["OBJETIVOS"] = pd.to_numeric(df_excel[objetivos_colunas[0]], errors='coerce').fillna(0).astype(int) if objetivos_colunas else 0
 
-                    # Objetivos cumpridos
                     cumpridos_colunas = [c for c in df_excel.columns if "Dos objetivos traçados, quantos foram cumpridos" in c]
-                    df_excel["OBJETIVOS_CUMPRIDOS"] = pd.to_numeric(df_excel[cumpridos_colunas[0]], errors='coerce').fillna(0) if cumpridos_colunas else 0
+                    df_excel["OBJETIVOS_CUMPRIDOS"] = pd.to_numeric(df_excel[cumpridos_colunas[0]], errors='coerce').fillna(0).astype(int) if cumpridos_colunas else 0
 
                     viagens.append(df_excel)
 
@@ -189,6 +188,7 @@ if uploaded_files:
             df_mes = df_total[df_total["MES"] == mes]
             st.header(f"Mês: {mes}")
             resumo = df_mes.groupby(["PRODUTO", natureza_col]).size().reset_index(name="TOTAL OCORRÊNCIAS")
+            resumo["TOTAL OCORRÊNCIAS"] = resumo["TOTAL OCORRÊNCIAS"].astype(int)
             st.subheader("Ocorrências por Natureza")
             st.dataframe(resumo.style.set_properties(**{"font-size": "16px"}), use_container_width=True)
 
@@ -209,12 +209,14 @@ if uploaded_files:
         for mes in obter_meses_ordenados(df_horas):
             df_mes = df_horas[df_horas["MES"] == mes]
             st.header(f"Horas Indisponíveis — {mes}")
-            total_horas = df_mes["HORAS"].sum()
-            st.metric("Total de Horas Indisponíveis", round(total_horas, 2))
+            total_horas = int(df_mes["HORAS"].sum())
+            st.metric("Total de Horas Indisponíveis", total_horas)
             horas_nat = df_mes.groupby(["PRODUTO", col_nat])["HORAS"].sum().reset_index()
+            horas_nat["HORAS"] = horas_nat["HORAS"].astype(int)
             st.subheader("Horas por Natureza")
             st.dataframe(horas_nat.style.set_properties(**{"font-size": "16px"}), use_container_width=True)
             horas_eq = df_mes.groupby(["PRODUTO", col_equip])["HORAS"].sum().reset_index()
+            horas_eq["HORAS"] = horas_eq["HORAS"].astype(int)
             st.subheader("Horas por Equipamento")
             st.dataframe(horas_eq.style.set_properties(**{"font-size": "16px"}), use_container_width=True)
 
@@ -228,9 +230,9 @@ if uploaded_files:
         for mes in obter_meses_ordenados(df_viagens):
             df_mes = df_viagens[df_viagens["MES"] == mes]
             st.header(f"Viagens Realizadas — {mes}")
-            st.metric("Total de Viagens", df_mes.shape[0])
-            st.metric("Total de Objetivos Traçados", df_mes["OBJETIVOS"].sum())
-            st.metric("Total de Objetivos Cumpridos", df_mes["OBJETIVOS_CUMPRIDOS"].sum())
+            st.metric("Total de Viagens", int(df_mes.shape[0]))
+            st.metric("Total de Objetivos Traçados", int(df_mes["OBJETIVOS"].sum()))
+            st.metric("Total de Objetivos Cumpridos", int(df_mes["OBJETIVOS_CUMPRIDOS"].sum()))
 
 else:
     st.info("Aguardando envio dos relatórios.")
