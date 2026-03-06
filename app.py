@@ -176,8 +176,8 @@ if uploaded_files:
         excluir = ["escolha um item", "escolher um item."]
         df_total = df_total[~df_total[natureza_col].str.lower().isin(excluir)]
         df_total["MES_DT"] = df_total["MES"].apply(mes_para_datetime)
-        df_total = df_total.sort_values("MES_DT", ascending=False)  # ordem decrescente
-        meses = df_total["MES"].drop_duplicates()
+        df_total = df_total.sort_values("MES_DT", ascending=False)
+        meses = df_total[["MES", "MES_DT"]].drop_duplicates().sort_values("MES_DT", ascending=False)["MES"]
 
         for mes in meses:
             st.header(f"Mês: {mes}")
@@ -198,11 +198,10 @@ if uploaded_files:
         df_horas["HORAS"] = df_horas[col_tempo].apply(converter_horas)
         df_horas[col_nat] = df_horas[col_nat].astype(str).str.strip()
         df_horas = df_horas[~df_horas[col_nat].str.lower().isin(["escolha um item", "escolher um item."])]
-        df_horas["MES"] = df_horas.get("MES", "Não identificado")
-        df_horas["MES"] = df_horas["MES"].apply(lambda x: x if x != "Não identificado" else extrair_mes_do_arquivo(file))
+        df_horas["MES"] = df_horas.get("MES", extrair_mes_do_arquivo(file))
         df_horas["MES_DT"] = df_horas["MES"].apply(mes_para_datetime)
         df_horas = df_horas.sort_values("MES_DT", ascending=False)
-        meses = df_horas["MES"].drop_duplicates()
+        meses = df_horas[["MES", "MES_DT"]].drop_duplicates().sort_values("MES_DT", ascending=False)["MES"]
 
         for mes in meses:
             st.header(f"Horas Indisponíveis — {mes}")
@@ -223,7 +222,7 @@ if uploaded_files:
         df_viagens = pd.concat(viagens, ignore_index=True)
         df_viagens["MES_DT"] = df_viagens["MES"].apply(mes_para_datetime)
         df_viagens = df_viagens.sort_values("MES_DT", ascending=False)
-        meses = df_viagens["MES"].drop_duplicates()
+        meses = df_viagens[["MES", "MES_DT"]].drop_duplicates().sort_values("MES_DT", ascending=False)["MES"]
 
         resumo_viagens = df_viagens.groupby("MES").size().reset_index(name="TOTAL VIAGENS")
         st.header("Viagens Realizadas por Mês")
