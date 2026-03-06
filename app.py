@@ -10,7 +10,7 @@ st.markdown("""
 <style>
 
 [data-testid="stDataFrame"] table {
-    font-size: 18px;
+    font-size: 24px;
 }
 
 [data-testid="stDataFrame"] th {
@@ -268,4 +268,5 @@ if uploaded_files:
 
 else:
     st.info("Aguardando envio dos relatórios.")
+
 
