@@ -31,7 +31,7 @@ def set_background(png_file):
     url("data:image/png;base64,{bin_str}");
 
     background-size: 300px;
-    background-position: calc(100% - 40px) 40px;
+    background-position: calc(100% - 50px) 40px;
     background-attachment: fixed;
     background-repeat: no-repeat;
     }}
@@ -260,6 +260,7 @@ if uploaded_files:
 else:
 
     st.info("Aguardando envio dos relatórios.")
+
 
 
 
