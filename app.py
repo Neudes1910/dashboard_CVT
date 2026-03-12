@@ -9,6 +9,37 @@ import base64
 # Configurações da página
 # ---------------------------------------------------------
 st.set_page_config(page_title="Analisador Automático de Relatórios - CVT", layout="wide")
+
+# ---------------------------------------------------------
+# FUNÇÃO PARA BACKGROUND
+# ---------------------------------------------------------
+def get_base64(file):
+    with open(file, "rb") as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
+
+def set_background(png_file):
+    bin_str = get_base64(png_file)
+    page_bg = f"""
+    <style>
+
+    .stApp {{
+        background-image: url("data:image/png;base64,{bin_str}");
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+        background-repeat: no-repeat;
+    }}
+
+    </style>
+    """
+    st.markdown(page_bg, unsafe_allow_html=True)
+
+# ---------------------------------------------------------
+# DEFINA A IMAGEM DE FUNDO AQUI
+# ---------------------------------------------------------
+set_background("background.png")
+
 st.title("Analisador Automático de Relatórios - CVT")
 
 # ---------------------------------------------------------
@@ -53,6 +84,7 @@ def extract_text_and_tables(file):
 
     return " ".join(text_content), tables
 
+
 def extract_product(tables):
     for table in tables:
         for row in table:
@@ -62,6 +94,7 @@ def extract_product(tables):
                     produto = str(row[1]).strip()
                     return re.sub(r"\s+", " ", produto)
     return "Produto não identificado"
+
 
 def extrair_mes_do_arquivo(file):
     filename = file.name
@@ -77,6 +110,7 @@ def extrair_mes_do_arquivo(file):
         return f"{mes}/{ano}"
     return "Não identificado"
 
+
 def find_occurrence_table(tables):
     for table in tables:
         header = [str(x).upper() for x in table[0]]
@@ -84,12 +118,14 @@ def find_occurrence_table(tables):
             return table
     return None
 
+
 def find_downtime_table(tables):
     for table in tables:
         header = [str(x).upper() for x in table[0]]
         if "POR QUANTO TEMPO?" in header and "QUAL EQUIPAMENTO?" in header:
             return table
     return None
+
 
 def converter_horas(valor):
     if valor is None:
@@ -99,27 +135,28 @@ def converter_horas(valor):
         return int(float(match.group(1).replace(",", ".")))
     return 0
 
+
 # ---------------------------------------------------------
 # Função para Excel
 # ---------------------------------------------------------
 def process_excel(file):
+
     df = pd.read_excel(file, engine="openpyxl")
     df.columns = df.columns.str.strip()
 
-    # Coluna data de ida
     if "Data de ida (poderá ser uma data futura):" in df.columns:
         df["Data de ida"] = pd.to_datetime(df["Data de ida (poderá ser uma data futura):"], errors="coerce")
         df["MES"] = df["Data de ida"].dt.strftime("%m/%Y").fillna("Não identificado")
     else:
         df["MES"] = "Não identificado"
 
-    # Objetivos
     objetivos = [
         "Quantos objetivos foram traçados antes da viagem? (apenas números)",
         "Dos objetivos traçados, quantos foram cumpridos? (apenas números)",
         "Houveram objetivos extras? (apenas números)",
         "Dos objetivos extras, quantos foram realizados? (apenas números)"
     ]
+
     for col in objetivos:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
@@ -128,22 +165,28 @@ def process_excel(file):
 
     return df
 
+
 # ---------------------------------------------------------
 # Processamento principal
 # ---------------------------------------------------------
 if uploaded_files:
+
     ocorrencias = []
     horas_registros = []
     viagens_dados = []
 
     for file in uploaded_files:
+
         try:
+
             if file.name.endswith(("docx", "docm", "dotm")):
+
                 text, tables = extract_text_and_tables(file)
                 produto = extract_product(tables)
                 mes_relatorio = extrair_mes_do_arquivo(file)
 
                 occ_table = find_occurrence_table(tables)
+
                 if occ_table:
                     df_occ = pd.DataFrame(occ_table[1:], columns=occ_table[0])
                     df_occ["PRODUTO"] = produto
@@ -152,102 +195,63 @@ if uploaded_files:
                     ocorrencias.append(df_occ)
 
                 downtime_table = find_downtime_table(tables)
+
                 if downtime_table:
                     df_down = pd.DataFrame(downtime_table[1:], columns=downtime_table[0])
                     df_down["PRODUTO"] = produto
                     df_down["MES"] = mes_relatorio
                     df_down["MES_SORT"] = pd.to_datetime("01/" + df_down["MES"], format="%d/%m/%Y", errors="coerce")
+
                     col_tempo = next(c for c in df_down.columns if "TEMPO" in c.upper())
                     df_down["HORAS"] = df_down[col_tempo].apply(converter_horas)
+
                     horas_registros.append(df_down)
 
             elif file.name.endswith("xlsx"):
+
                 df_viagens = process_excel(file)
                 df_viagens["MES_SORT"] = pd.to_datetime("01/" + df_viagens["MES"], format="%d/%m/%Y", errors="coerce")
                 viagens_dados.append(df_viagens)
 
         except Exception as e:
+
             st.warning(f"Erro ao processar {file.name}: {e}")
 
     # ---------------------------------------------------------
     # OCORRÊNCIAS POR MÊS
     # ---------------------------------------------------------
     if ocorrencias:
+
         df_total = pd.concat(ocorrencias, ignore_index=True)
+
         natureza_col = [c for c in df_total.columns if "NATUREZA" in c.upper()][0]
+
         df_total[natureza_col] = df_total[natureza_col].astype(str).str.strip()
+
         excluir = ["escolha um item", "escolher um item."]
+
         df_total = df_total[~df_total[natureza_col].str.lower().isin(excluir)]
 
         meses_ordenados = df_total[["MES", "MES_SORT"]].drop_duplicates().sort_values("MES_SORT", ascending=False)
 
         for _, row in meses_ordenados.iterrows():
+
             mes = row["MES"]
+
             df_mes = df_total[df_total["MES"] == mes]
+
             st.header(f"Mês: {mes}")
+
             resumo = (
                 df_mes.groupby(["PRODUTO", natureza_col])
                 .size()
                 .reset_index(name="TOTAL OCORRÊNCIAS")
             )
+
             st.subheader("Ocorrências por Natureza")
+
             st.dataframe(resumo.style.format({"TOTAL OCORRÊNCIAS": "{:d}"}).set_properties(**{"font-size": "16px"}), use_container_width=True)
 
-    # ---------------------------------------------------------
-    # HORAS DE INDISPONIBILIDADE POR MÊS
-    # ---------------------------------------------------------
-    if horas_registros:
-        df_horas = pd.concat(horas_registros, ignore_index=True)
-        col_nat = next(c for c in df_horas.columns if "NATUREZA" in c.upper())
-        col_equip = next(c for c in df_horas.columns if "QUAL EQUIPAMENTO" in c.upper())
-        df_horas[col_nat] = df_horas[col_nat].astype(str).str.strip()
-        df_horas = df_horas[~df_horas[col_nat].str.lower().isin(["escolha um item", "escolher um item."])]
-
-        meses_ordenados = df_horas[["MES", "MES_SORT"]].drop_duplicates().sort_values("MES_SORT", ascending=False)
-
-        for _, row in meses_ordenados.iterrows():
-            mes = row["MES"]
-            df_mes = df_horas[df_horas["MES"] == mes]
-            st.header(f"Horas Indisponíveis — {mes}")
-            total_horas = int(df_mes["HORAS"].sum())
-            st.metric("Total de Horas Indisponíveis", total_horas)
-
-            horas_nat = df_mes.groupby(["PRODUTO", col_nat])["HORAS"].sum().reset_index()
-            horas_nat["HORAS"] = horas_nat["HORAS"].astype(int)
-            st.subheader("Horas por Natureza")
-            st.dataframe(horas_nat.style.format({"HORAS": "{:d}"}).set_properties(**{"font-size": "16px"}), use_container_width=True)
-
-            horas_eq = df_mes.groupby(["PRODUTO", col_equip])["HORAS"].sum().reset_index()
-            horas_eq["HORAS"] = horas_eq["HORAS"].astype(int)
-            st.subheader("Horas por Equipamento")
-            st.dataframe(horas_eq.style.format({"HORAS": "{:d}"}).set_properties(**{"font-size": "16px"}), use_container_width=True)
-
-    # ---------------------------------------------------------
-    # VIAGENS POR MÊS
-    # ---------------------------------------------------------
-    if viagens_dados:
-        df_viagens_total = pd.concat(viagens_dados, ignore_index=True)
-        meses_ordenados = df_viagens_total[["MES", "MES_SORT"]].drop_duplicates().sort_values("MES_SORT", ascending=False)
-
-        for _, row in meses_ordenados.iterrows():
-            mes = row["MES"]
-            df_mes = df_viagens_total[df_viagens_total["MES"] == mes]
-            st.header(f"Viagens — {mes}")
-
-            # Número de viagens
-            total_viagens = len(df_mes)
-            st.metric("Total de Viagens", total_viagens)
-
-            # Objetivos traçados e cumpridos
-            col_obj_trac = "Quantos objetivos foram traçados antes da viagem? (apenas números)"
-            col_obj_cump = "Dos objetivos traçados, quantos foram cumpridos? (apenas números)"
-            col_obj_extra = "Houveram objetivos extras? (apenas números)"
-            col_obj_extra_cump = "Dos objetivos extras, quantos foram realizados? (apenas números)"
-
-            st.metric("Objetivos Traçados (total)", int(df_mes[col_obj_trac].sum()))
-            st.metric("Objetivos Cumpridos (total)", int(df_mes[col_obj_cump].sum()))
-            st.metric("Objetivos Extras (total)", int(df_mes[col_obj_extra].sum()))
-            st.metric("Objetivos Extras Cumpridos (total)", int(df_mes[col_obj_extra_cump].sum()))
-
 else:
+
     st.info("Aguardando envio dos relatórios.")
