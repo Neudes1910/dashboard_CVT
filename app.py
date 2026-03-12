@@ -25,13 +25,13 @@ def set_background(png_file):
 
     .stApp {{
  background: linear-gradient(
-        rgba(0,0,0,0.1),
-        rgba(0,0,0,0.1)
+        rgba(0,0,0,0),
+        rgba(0,0,0,0)
     ),
     url("data:image/png;base64,{bin_str}");
 
     background-size: auto;
-    background-position: center;
+    background-position: right;
     background-attachment: fixed;
     background-repeat: no-repeat;
     }}
@@ -260,6 +260,7 @@ if uploaded_files:
 else:
 
     st.info("Aguardando envio dos relatórios.")
+
 
 
 
