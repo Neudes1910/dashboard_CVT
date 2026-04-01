@@ -219,93 +219,7 @@ if uploaded_files:
                 viagens_dados.append(df_viagens)
 
         except Exception as e:
-
             st.warning(f"Erro ao processar {file.name}: {e}")
-
-    # ---------------------------------------------------------
-    # OCORRÊNCIAS POR MÊS
-    # ---------------------------------------------------------
-    if ocorrencias:
-
-        df_total = pd.concat(ocorrencias, ignore_index=True)
-
-        natureza_col = [c for c in df_total.columns if "NATUREZA" in c.upper()][0]
-
-        df_total[natureza_col] = df_total[natureza_col].astype(str).str.strip()
-
-        excluir = ["escolha um item", "escolher um item."]
-
-        df_total = df_total[~df_total[natureza_col].str.lower().isin(excluir)]
-
-        meses_ordenados = df_total[["MES", "MES_SORT"]].drop_duplicates().sort_values("MES_SORT", ascending=False)
-
-        for _, row in meses_ordenados.iterrows():
-
-            mes = row["MES"]
-
-            df_mes = df_total[df_total["MES"] == mes]
-
-            st.header(f"Mês: {mes}")
-
-            resumo = (
-                df_mes.groupby(["PRODUTO", natureza_col])
-                .size()
-                .reset_index(name="TOTAL OCORRÊNCIAS")
-            )
-
-            st.subheader("Ocorrências por Natureza")
-
-            st.dataframe(resumo.style.format({"TOTAL OCORRÊNCIAS": "{:d}"}).set_properties(**{"font-size": "16px"}), use_container_width=True)
-# ---------------------------------------------------------
-    # HORAS DE INDISPONIBILIDADE POR MÊS
-    # ---------------------------------------------------------
-    if horas_registros:
-
-        df_horas = pd.concat(horas_registros, ignore_index=True)
-
-        col_nat = next(c for c in df_horas.columns if "NATUREZA" in c.upper())
-        col_equip = next(c for c in df_horas.columns if "QUAL EQUIPAMENTO" in c.upper())
-
-        df_horas[col_nat] = df_horas[col_nat].astype(str).str.strip()
-
-        df_horas = df_horas[
-            ~df_horas[col_nat].str.lower().isin(["escolha um item", "escolher um item."])
-        ]
-
-        meses_ordenados = df_horas[["MES", "MES_SORT"]].drop_duplicates().sort_values("MES_SORT", ascending=False)
-
-        for _, row in meses_ordenados.iterrows():
-
-            mes = row["MES"]
-
-            df_mes = df_horas[df_horas["MES"] == mes]
-
-            st.header(f"Horas Indisponíveis — {mes}")
-
-            total_horas = int(df_mes["HORAS"].sum())
-
-            st.metric("Total de Horas Indisponíveis", total_horas)
-
-            horas_nat = df_mes.groupby(["PRODUTO", col_nat])["HORAS"].sum().reset_index()
-            horas_nat["HORAS"] = horas_nat["HORAS"].astype(int)
-
-            st.subheader("Horas por Natureza")
-
-            st.dataframe(
-                horas_nat.style.format({"HORAS": "{:d}"}).set_properties(**{"font-size": "16px"}),
-                use_container_width=True
-            )
-
-            horas_eq = df_mes.groupby(["PRODUTO", col_equip])["HORAS"].sum().reset_index()
-            horas_eq["HORAS"] = horas_eq["HORAS"].astype(int)
-
-            st.subheader("Horas por Equipamento")
-
-            st.dataframe(
-                horas_eq.style.format({"HORAS": "{:d}"}).set_properties(**{"font-size": "16px"}),
-                use_container_width=True
-            )
-
 
     # ---------------------------------------------------------
     # VIAGENS POR MÊS
@@ -319,41 +233,42 @@ if uploaded_files:
         for _, row in meses_ordenados.iterrows():
 
             mes = row["MES"]
-
             df_mes = df_viagens_total[df_viagens_total["MES"] == mes]
 
             st.header(f"Viagens — {mes}")
 
             total_viagens = len(df_mes)
-
             st.metric("Total de Viagens", total_viagens)
-            
+
+            # VIAGENS POR PROJETO
             col_projeto = "Qual projeto foi visitado?"
 
-if col_projeto in df_mes.columns:
+            if col_projeto in df_mes.columns:
 
-    df_mes[col_projeto] = df_mes[col_projeto].astype(str).str.strip()
+                df_mes[col_projeto] = df_mes[col_projeto].astype(str).str.strip()
 
-    df_filtrado = df_mes[
-        ~df_mes[col_projeto].str.lower().isin([
-            "nan", "não identificado", "escolha um item"
-        ])
-    ]
+                df_filtrado = df_mes[
+                    ~df_mes[col_projeto].str.lower().isin([
+                        "nan", "não identificado", "escolha um item"
+                    ])
+                ]
 
-    viagens_projeto = (
-        df_filtrado.groupby(col_projeto)
-        .size()
-        .reset_index(name="TOTAL VIAGENS")
-        .sort_values("TOTAL VIAGENS", ascending=False)
-    )
+                viagens_projeto = (
+                    df_filtrado.groupby(col_projeto)
+                    .size()
+                    .reset_index(name="TOTAL VIAGENS")
+                    .sort_values("TOTAL VIAGENS", ascending=False)
+                )
 
-    st.subheader("Viagens por Projeto")
+                st.subheader("Viagens por Projeto")
 
-    st.dataframe(
-        viagens_projeto.style.format({"TOTAL VIAGENS": "{:d}"})
-        .set_properties(**{"font-size": "16px"}),
-        use_container_width=True
-    )
+                st.dataframe(
+                    viagens_projeto.style.format({"TOTAL VIAGENS": "{:d}"})
+                    .set_properties(**{"font-size": "16px"}),
+                    use_container_width=True
+                )
+
+            # MÉTRICAS
             col_obj_trac = "Quantos objetivos foram traçados antes da viagem? (apenas números)"
             col_obj_cump = "Dos objetivos traçados, quantos foram cumpridos? (apenas números)"
             col_obj_extra = "Houveram objetivos extras? (apenas números)"
@@ -363,6 +278,6 @@ if col_projeto in df_mes.columns:
             st.metric("Objetivos Cumpridos (total)", int(df_mes[col_obj_cump].sum()))
             st.metric("Objetivos Extras (total)", int(df_mes[col_obj_extra].sum()))
             st.metric("Objetivos Extras Cumpridos (total)", int(df_mes[col_obj_extra_cump].sum()))
-else:
 
+else:
     st.info("Aguardando envio dos relatórios.")
