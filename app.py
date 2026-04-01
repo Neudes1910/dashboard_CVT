@@ -327,7 +327,33 @@ if uploaded_files:
             total_viagens = len(df_mes)
 
             st.metric("Total de Viagens", total_viagens)
+            
+            col_projeto = "Qual projeto foi visitado?"
 
+if col_projeto in df_mes.columns:
+
+    df_mes[col_projeto] = df_mes[col_projeto].astype(str).str.strip()
+
+    df_filtrado = df_mes[
+        ~df_mes[col_projeto].str.lower().isin([
+            "nan", "não identificado", "escolha um item"
+        ])
+    ]
+
+    viagens_projeto = (
+        df_filtrado.groupby(col_projeto)
+        .size()
+        .reset_index(name="TOTAL VIAGENS")
+        .sort_values("TOTAL VIAGENS", ascending=False)
+    )
+
+    st.subheader("Viagens por Projeto")
+
+    st.dataframe(
+        viagens_projeto.style.format({"TOTAL VIAGENS": "{:d}"})
+        .set_properties(**{"font-size": "16px"}),
+        use_container_width=True
+    )
             col_obj_trac = "Quantos objetivos foram traçados antes da viagem? (apenas números)"
             col_obj_cump = "Dos objetivos traçados, quantos foram cumpridos? (apenas números)"
             col_obj_extra = "Houveram objetivos extras? (apenas números)"
