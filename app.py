@@ -4,7 +4,6 @@ import xml.etree.ElementTree as ET
 import pandas as pd
 import re
 import base64
-import traceback
 
 # ---------------------------------------------------------
 # Configurações da página
@@ -32,7 +31,7 @@ def set_background(png_file):
         </style>
         """, unsafe_allow_html=True)
     except:
-        st.warning("Background não carregado")
+        pass
 
 set_background("background.png")
 
@@ -81,14 +80,6 @@ def extract_text_and_tables(file):
     return " ".join(text_content), tables
 
 
-def extract_product(tables):
-    for table in tables:
-        for row in table:
-            if len(row) >= 2 and str(row[0]).lower().startswith("produto"):
-                return str(row[1]).strip()
-    return "Produto não identificado"
-
-
 def extrair_mes_do_arquivo(file):
     match = re.search(r'(\d{1,2})[._-](\d{1,2})(?:[._-](\d{2,4}))?', file.name)
     if match:
@@ -105,19 +96,6 @@ def find_occurrence_table(tables):
         if "NATUREZA" in header and "OCORRÊNCIA" in header:
             return table
     return None
-
-
-def find_downtime_table(tables):
-    for table in tables:
-        header = [str(x).upper() for x in table[0]]
-        if "POR QUANTO TEMPO?" in header and "QUAL EQUIPAMENTO?" in header:
-            return table
-    return None
-
-
-def converter_horas(valor):
-    match = re.search(r'(\d+[.,]?\d*)', str(valor))
-    return int(float(match.group(1).replace(",", "."))) if match else 0
 
 # ---------------------------------------------------------
 # Excel
@@ -152,40 +130,27 @@ def process_excel(file):
 # ---------------------------------------------------------
 if uploaded_files:
 
-   
-
     ocorrencias = []
-    horas_registros = []
     viagens_dados = []
 
     for file in uploaded_files:
+
         try:
 
             if file.name.endswith(("docx", "docm", "dotm")):
 
                 text, tables = extract_text_and_tables(file)
-                produto = extract_product(tables)
                 mes_relatorio = extrair_mes_do_arquivo(file)
 
                 occ_table = find_occurrence_table(tables)
+
                 if occ_table:
                     df_occ = pd.DataFrame(occ_table[1:], columns=occ_table[0])
-                    df_occ["PRODUTO"] = produto
                     df_occ["MES"] = mes_relatorio
                     ocorrencias.append(df_occ)
 
-                downtime_table = find_downtime_table(tables)
-                if downtime_table:
-                    df_down = pd.DataFrame(downtime_table[1:], columns=downtime_table[0])
-                    df_down["PRODUTO"] = produto
-                    df_down["MES"] = mes_relatorio
-
-                    col_tempo = next(c for c in df_down.columns if "TEMPO" in c.upper())
-                    df_down["HORAS"] = df_down[col_tempo].apply(converter_horas)
-
-                    horas_registros.append(df_down)
-
             elif file.name.endswith("xlsx"):
+
                 df_viagens = process_excel(file)
                 df_viagens["MES_SORT"] = pd.to_datetime(
                     "01/" + df_viagens["MES"],
@@ -194,25 +159,41 @@ if uploaded_files:
                 )
                 viagens_dados.append(df_viagens)
 
-        except Exception:
-            st.error(f"Erro ao processar {file.name}")
-            st.text(traceback.format_exc())
+        except Exception as e:
+            st.warning(f"Erro ao processar {file.name}: {e}")
 
     # ---------------------------------------------------------
-    # EXIBIÇÃO WORD
+    # OCORRÊNCIAS POR NATUREZA
     # ---------------------------------------------------------
     if ocorrencias:
-        st.header("Ocorrências")
-        df_occ_total = pd.concat(ocorrencias, ignore_index=True)
-        st.dataframe(df_occ_total, use_container_width=True)
 
-    if horas_registros:
-        st.header("Horas de Indisponibilidade")
-        df_horas_total = pd.concat(horas_registros, ignore_index=True)
-        st.dataframe(df_horas_total, use_container_width=True)
+        df_occ_total = pd.concat(ocorrencias, ignore_index=True)
+
+        col_natureza = next(
+            (c for c in df_occ_total.columns if "NATUREZA" in c.upper()),
+            None
+        )
+
+        if col_natureza:
+
+            df_filtrado = df_occ_total[
+                ~df_occ_total[col_natureza].astype(str).str.strip().str.lower().isin(
+                    ["nan", "não identificado", "escolha um item."]
+                )
+            ]
+
+            resumo = (
+                df_filtrado.groupby(col_natureza)
+                .size()
+                .reset_index(name="TOTAL OCORRÊNCIAS")
+                .sort_values("TOTAL OCORRÊNCIAS", ascending=False)
+            )
+
+            st.header("Ocorrências por Natureza")
+            st.dataframe(resumo, use_container_width=True)
 
     # ---------------------------------------------------------
-    # EXCEL
+    # EXCEL (mantido)
     # ---------------------------------------------------------
     if viagens_dados:
 
