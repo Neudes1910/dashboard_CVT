@@ -18,7 +18,7 @@ def get_base64(file):
     with open(file, "rb") as f:
         return base64.b64encode(f.read()).decode()
 
-#def set_background(png_file):
+def set_background(png_file):
     try:
         bin_str = get_base64(png_file)
         page_bg = f"""
