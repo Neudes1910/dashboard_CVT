@@ -4,7 +4,6 @@ import xml.etree.ElementTree as ET
 import pandas as pd
 import re
 import base64
-import traceback
 
 # ---------------------------------------------------------
 # Configurações da página
@@ -16,30 +15,31 @@ st.set_page_config(page_title="Analisador Automático de Relatórios - CVT", lay
 # ---------------------------------------------------------
 def get_base64(file):
     with open(file, "rb") as f:
-        return base64.b64encode(f.read()).decode()
+        data = f.read()
+    return base64.b64encode(data).decode()
 
 def set_background(png_file):
-    try:
-        bin_str = get_base64(png_file)
-        page_bg = f"""
-        <style>
-        .stApp {{
-            background: linear-gradient(
-                rgba(0,0,0,0),
-                rgba(0,0,0,0)
-            ),
-            url("data:image/png;base64,{bin_str}");
-            background-size: 250px;
-            background-position: calc(100% - 40px) 60px;
-            background-attachment: fixed;
-            background-repeat: no-repeat;
-        }}
-        </style>
-        """
-        st.markdown(page_bg, unsafe_allow_html=True)
-    except:
-        pass
+    bin_str = get_base64(png_file)
+    page_bg = f"""
+    <style>
+    .stApp {{
+        background: linear-gradient(
+            rgba(0,0,0,0),
+            rgba(0,0,0,0)
+        ),
+        url("data:image/png;base64,{bin_str}");
+        background-size: 250px;
+        background-position: calc(100% - 40px) 60px;
+        background-attachment: fixed;
+        background-repeat: no-repeat;
+    }}
+    </style>
+    """
+    st.markdown(page_bg, unsafe_allow_html=True)
 
+# ---------------------------------------------------------
+# DEFINA A IMAGEM DE FUNDO AQUI
+# ---------------------------------------------------------
 set_background("background.png")
 
 st.title("Analisador Automático de Relatórios - CVT")
@@ -56,52 +56,36 @@ uploaded_files = st.file_uploader(
 NAMESPACE = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
 
 # ---------------------------------------------------------
-# Funções para Word (XML robusto mantendo lógica original)
+# Funções para Word
 # ---------------------------------------------------------
 def extract_text_and_tables(file):
     text_content = []
     tables = []
 
-    try:
-        with zipfile.ZipFile(file) as doc:
+    with zipfile.ZipFile(file) as doc:
+        xml_content = doc.read("word/document.xml")
 
-            if "word/document.xml" not in doc.namelist():
-                return "", []
+    root = ET.fromstring(xml_content)
+    body = root.find('w:body', NAMESPACE)
 
-            xml_content = doc.read("word/document.xml")
+    for t in body.findall('.//w:t', NAMESPACE):
+        if t.text:
+            text_content.append(t.text)
 
-        root = ET.fromstring(xml_content)
-        body = root.find('w:body', NAMESPACE)
+    for tbl in body.findall('.//w:tbl', NAMESPACE):
+        table_data = []
+        for row in tbl.findall('.//w:tr', NAMESPACE):
+            cells = []
+            for cell in row.findall('.//w:tc', NAMESPACE):
+                texts = [t.text for t in cell.findall('.//w:t', NAMESPACE) if t.text]
+                cells.append(" ".join(texts).strip())
+            if cells:
+                table_data.append(cells)
+        if table_data:
+            tables.append(table_data)
 
-        if body is None:
-            return "", []
+    return " ".join(text_content), tables
 
-        # TEXTO
-        for t in body.findall('.//w:t', NAMESPACE):
-            if t.text:
-                text_content.append(t.text)
-
-        # TABELAS (mesma lógica original)
-        for tbl in body.findall('.//w:tbl', NAMESPACE):
-            table_data = []
-
-            for row in tbl.findall('.//w:tr', NAMESPACE):
-                cells = []
-
-                for cell in row.findall('.//w:tc', NAMESPACE):
-                    texts = [t.text for t in cell.findall('.//w:t', NAMESPACE) if t.text]
-                    cells.append(" ".join(texts).strip())
-
-                if cells:
-                    table_data.append(cells)
-
-            if table_data:
-                tables.append(table_data)
-
-        return " ".join(text_content), tables
-
-    except Exception:
-        return "", []
 
 def extract_product(tables):
     for table in tables:
@@ -112,6 +96,7 @@ def extract_product(tables):
                     produto = str(row[1]).strip()
                     return re.sub(r"\s+", " ", produto)
     return "Produto não identificado"
+
 
 def extrair_mes_do_arquivo(file):
     filename = file.name
@@ -131,6 +116,7 @@ def extrair_mes_do_arquivo(file):
 
     return "Não identificado"
 
+
 def find_occurrence_table(tables):
     for table in tables:
         header = [str(x).upper() for x in table[0]]
@@ -138,12 +124,14 @@ def find_occurrence_table(tables):
             return table
     return None
 
+
 def find_downtime_table(tables):
     for table in tables:
         header = [str(x).upper() for x in table[0]]
         if "POR QUANTO TEMPO?" in header and "QUAL EQUIPAMENTO?" in header:
             return table
     return None
+
 
 def converter_horas(valor):
     if valor is None:
@@ -161,7 +149,10 @@ def process_excel(file):
     df.columns = df.columns.str.strip()
 
     if "Data de ida (poderá ser uma data futura):" in df.columns:
-        df["Data de ida"] = pd.to_datetime(df["Data de ida (poderá ser uma data futura):"], errors="coerce")
+        df["Data de ida"] = pd.to_datetime(
+            df["Data de ida (poderá ser uma data futura):"],
+            errors="coerce"
+        )
         df["MES"] = df["Data de ida"].dt.strftime("%m/%Y").fillna("Não identificado")
     else:
         df["MES"] = "Não identificado"
@@ -196,7 +187,6 @@ if uploaded_files:
             if file.name.endswith(("docx", "docm", "dotm")):
 
                 text, tables = extract_text_and_tables(file)
-
                 produto = extract_product(tables)
                 mes_relatorio = extrair_mes_do_arquivo(file)
 
@@ -225,15 +215,8 @@ if uploaded_files:
                         errors="coerce"
                     )
 
-                    col_tempo = next(
-                        (c for c in df_down.columns if "TEMPO" in c.upper()),
-                        None
-                    )
-
-                    if col_tempo:
-                        df_down["HORAS"] = df_down[col_tempo].apply(converter_horas)
-                    else:
-                        df_down["HORAS"] = 0
+                    col_tempo = next(c for c in df_down.columns if "TEMPO" in c.upper())
+                    df_down["HORAS"] = df_down[col_tempo].apply(converter_horas)
 
                     horas_registros.append(df_down)
 
@@ -247,9 +230,8 @@ if uploaded_files:
                 )
                 viagens_dados.append(df_viagens)
 
-        except Exception:
-            st.error(f"Erro ao processar {file.name}")
-            st.text(traceback.format_exc())
+        except Exception as e:
+            st.warning(f"Erro ao processar {file.name}: {e}")
 
     # ---------------------------------------------------------
     # VIAGENS POR MÊS
@@ -296,14 +278,21 @@ if uploaded_files:
                 st.subheader("Viagens por Projeto")
 
                 st.dataframe(
-                    viagens_projeto.style.format({"TOTAL VIAGENS": "{:d}"}),
+                    viagens_projeto.style.format({"TOTAL VIAGENS": "{:d}"})
+                    .set_properties(**{"font-size": "16px"}),
                     use_container_width=True
                 )
 
-            st.metric("Objetivos Traçados (total)", int(df_mes.iloc[:, -4].sum()))
-            st.metric("Objetivos Cumpridos (total)", int(df_mes.iloc[:, -3].sum()))
-            st.metric("Objetivos Extras (total)", int(df_mes.iloc[:, -2].sum()))
-            st.metric("Objetivos Extras Cumpridos (total)", int(df_mes.iloc[:, -1].sum()))
+            # MÉTRICAS
+            col_obj_trac = "Quantos objetivos foram traçados antes da viagem? (apenas números)"
+            col_obj_cump = "Dos objetivos traçados, quantos foram cumpridos? (apenas números)"
+            col_obj_extra = "Houveram objetivos extras? (apenas números)"
+            col_obj_extra_cump = "Dos objetivos extras, quantos foram realizados? (apenas números)"
+
+            st.metric("Objetivos Traçados (total)", int(df_mes[col_obj_trac].sum()))
+            st.metric("Objetivos Cumpridos (total)", int(df_mes[col_obj_cump].sum()))
+            st.metric("Objetivos Extras (total)", int(df_mes[col_obj_extra].sum()))
+            st.metric("Objetivos Extras Cumpridos (total)", int(df_mes[col_obj_extra_cump].sum()))
 
 else:
     st.info("Aguardando envio dos relatórios.")
