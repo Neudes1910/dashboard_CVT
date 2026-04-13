@@ -97,6 +97,19 @@ def find_occurrence_table(tables):
             return table
     return None
 
+
+def find_downtime_table(tables):
+    for table in tables:
+        header = [str(x).upper() for x in table[0]]
+        if "POR QUANTO TEMPO?" in header and "QUAL EQUIPAMENTO?" in header:
+            return table
+    return None
+
+
+def converter_horas(valor):
+    match = re.search(r'(\d+[.,]?\d*)', str(valor))
+    return float(match.group(1).replace(",", ".")) if match else 0
+
 # ---------------------------------------------------------
 # Excel
 # ---------------------------------------------------------
@@ -131,6 +144,7 @@ def process_excel(file):
 if uploaded_files:
 
     ocorrencias = []
+    horas_registros = []
     viagens_dados = []
 
     for file in uploaded_files:
@@ -142,12 +156,23 @@ if uploaded_files:
                 text, tables = extract_text_and_tables(file)
                 mes_relatorio = extrair_mes_do_arquivo(file)
 
+                # OCORRÊNCIAS
                 occ_table = find_occurrence_table(tables)
-
                 if occ_table:
                     df_occ = pd.DataFrame(occ_table[1:], columns=occ_table[0])
                     df_occ["MES"] = mes_relatorio
                     ocorrencias.append(df_occ)
+
+                # HORAS
+                downtime_table = find_downtime_table(tables)
+                if downtime_table:
+                    df_down = pd.DataFrame(downtime_table[1:], columns=downtime_table[0])
+                    df_down["MES"] = mes_relatorio
+
+                    col_tempo = next(c for c in df_down.columns if "TEMPO" in c.upper())
+                    df_down["HORAS"] = df_down[col_tempo].apply(converter_horas)
+
+                    horas_registros.append(df_down)
 
             elif file.name.endswith("xlsx"):
 
@@ -169,16 +194,13 @@ if uploaded_files:
 
         df_occ_total = pd.concat(ocorrencias, ignore_index=True)
 
-        col_natureza = next(
-            (c for c in df_occ_total.columns if "NATUREZA" in c.upper()),
-            None
-        )
+        col_natureza = next((c for c in df_occ_total.columns if "NATUREZA" in c.upper()), None)
 
         if col_natureza:
 
             df_filtrado = df_occ_total[
                 ~df_occ_total[col_natureza].astype(str).str.strip().str.lower().isin(
-                    ["nan", "não identificado", "escolha um item.","escolher um item."]
+                    ["nan", "não identificado", "escolha um item."]
                 )
             ]
 
@@ -191,6 +213,33 @@ if uploaded_files:
 
             st.header("Ocorrências por Natureza")
             st.dataframe(resumo, use_container_width=True)
+
+    # ---------------------------------------------------------
+    # HORAS POR EQUIPAMENTO
+    # ---------------------------------------------------------
+    if horas_registros:
+
+        df_horas_total = pd.concat(horas_registros, ignore_index=True)
+
+        col_equip = next((c for c in df_horas_total.columns if "EQUIPAMENTO" in c.upper()), None)
+
+        if col_equip:
+
+            df_filtrado = df_horas_total[
+                ~df_horas_total[col_equip].astype(str).str.strip().str.lower().isin(
+                    ["nan", "não identificado", "escolha um item."]
+                )
+            ]
+
+            resumo_horas = (
+                df_filtrado.groupby(col_equip)["HORAS"]
+                .sum()
+                .reset_index()
+                .sort_values("HORAS", ascending=False)
+            )
+
+            st.header("Horas de Indisponibilidade por Equipamento")
+            st.dataframe(resumo_horas, use_container_width=True)
 
     # ---------------------------------------------------------
     # EXCEL (mantido)
