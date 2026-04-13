@@ -4,6 +4,7 @@ import xml.etree.ElementTree as ET
 import pandas as pd
 import re
 import base64
+import traceback
 
 # ---------------------------------------------------------
 # Configurações da página
