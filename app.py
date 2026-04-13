@@ -261,7 +261,7 @@ if uploaded_files:
     # ---------------------------------------------------------
     if horas_registros:
 
-else:
+    else:
         df_horas = pd.concat(horas_registros, ignore_index=True)
 
     st.info("Aguardando envio dos relatórios.")
