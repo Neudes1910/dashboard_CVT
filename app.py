@@ -229,53 +229,53 @@ if uploaded_files:
             st.dataframe(resumo, use_container_width=True)
 
     # ---------------------------------------------------------
-# HORAS
-# ---------------------------------------------------------
-if horas_registros:
+    # HORAS
+    # ---------------------------------------------------------
+    if horas_registros:
 
-    df_horas = pd.concat(horas_registros, ignore_index=True)
+        df_horas = pd.concat(horas_registros, ignore_index=True)
 
-    col_nat = next(c for c in df_horas.columns if "NATUREZA" in c.upper())
-    col_equip = next(c for c in df_horas.columns if "QUAL EQUIPAMENTO?" in c.upper())
+        col_nat = next(c for c in df_horas.columns if "NATUREZA" in c.upper())
+        col_equip = next(c for c in df_horas.columns if "QUAL EQUIPAMENTO?" in c.upper())
 
-    df_horas = df_horas[
-        ~df_horas[col_nat].astype(str).str.lower().isin(["escolha um item", "escolher um item."])
-    ]
-
-    meses_ordenados = df_horas[["MES", "MES_SORT"]].drop_duplicates().sort_values("MES_SORT", ascending=False)
-
-    for _, row in meses_ordenados.iterrows():
-
-        mes = row["MES"]
-        df_mes = df_horas[df_horas["MES"] == mes]
-
-        st.header(f"Horas — {mes}")
-
-        # TOTAL
-        st.metric("Total de Horas", int(df_mes["HORAS"].sum()))
-
-        # --------------------------------------------
-        # LISTAGEM DETALHADA (o que você pediu)
-        # --------------------------------------------
-        df_detalhado = df_mes[[col_equip, "HORAS", "PRODUTO"]].copy()
-
-        df_detalhado = df_detalhado[
-            ~df_detalhado[col_equip].astype(str).str.lower().isin(
-                ["nan", "não identificado", "escolha um item."]
-            )
+        df_horas = df_horas[
+            ~df_horas[col_nat].astype(str).str.lower().isin(["escolha um item", "escolher um item."])
         ]
 
-        df_detalhado["HORAS"] = df_detalhado["HORAS"].astype(int)
+        meses_ordenados = df_horas[["MES", "MES_SORT"]].drop_duplicates().sort_values("MES_SORT", ascending=False)
 
-        st.subheader("Detalhamento de Indisponibilidade")
+        for _, row in meses_ordenados.iterrows():
 
-        st.dataframe(
-            df_detalhado.rename(columns={
-                col_equip: "EQUIPAMENTO",
-                "HORAS": "TEMPO (h)"
-            }),
-            use_container_width=True
-        )
+            mes = row["MES"]
+            df_mes = df_horas[df_horas["MES"] == mes]
+
+            st.header(f"Horas — {mes}")
+
+            # TOTAL
+            st.metric("Total de Horas", int(df_mes["HORAS"].sum()))
+
+            # --------------------------------------------
+            # LISTAGEM DETALHADA (o que você pediu)
+            # --------------------------------------------
+            df_detalhado = df_mes[[col_equip, "HORAS", "PRODUTO"]].copy()
+
+            df_detalhado = df_detalhado[
+                ~df_detalhado[col_equip].astype(str).str.lower().isin(
+                    ["nan", "não identificado", "escolha um item."]
+                )
+            ]
+
+            df_detalhado["HORAS"] = df_detalhado["HORAS"].astype(int)
+
+            st.subheader("Detalhamento de Indisponibilidade")
+
+            st.dataframe(
+                df_detalhado.rename(columns={
+                    col_equip: "EQUIPAMENTO",
+                    "HORAS": "TEMPO (h)"
+                }),
+                use_container_width=True
+            )
     # ---------------------------------------------------------
     # VIAGENS
     # ---------------------------------------------------------
