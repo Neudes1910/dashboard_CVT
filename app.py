@@ -37,7 +37,6 @@ def set_background(png_file):
 set_background("background.png")
 
 st.title("Analisador Automático de Relatórios - CVT")
-st.write("Checkpoint 1 - App iniciado")
 
 # ---------------------------------------------------------
 # Upload
