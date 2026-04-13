@@ -152,7 +152,7 @@ def process_excel(file):
 # ---------------------------------------------------------
 if uploaded_files:
 
-    st.write("Checkpoint 2 - Arquivos carregados")
+   
 
     ocorrencias = []
     horas_registros = []
