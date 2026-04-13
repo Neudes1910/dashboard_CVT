@@ -236,7 +236,7 @@ if horas_registros:
     df_horas = pd.concat(horas_registros, ignore_index=True)
 
     col_nat = next(c for c in df_horas.columns if "NATUREZA" in c.upper())
-    col_equip = next(c for c in df_horas.columns if "EQUIPAMENTO" in c.upper())
+    col_equip = next(c for c in df_horas.columns if "QUAL EQUIPAMENTO?" in c.upper())
 
     df_horas = df_horas[
         ~df_horas[col_nat].astype(str).str.lower().isin(["escolha um item", "escolher um item."])
