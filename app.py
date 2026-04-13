@@ -276,38 +276,38 @@ if uploaded_files:
                 }),
                 use_container_width=True
             )
-   # ---------------------------------------------------------
-# VIAGENS
-# ---------------------------------------------------------
-if viagens_dados:
+    # ---------------------------------------------------------    
+    # VIAGENS
+    # ---------------------------------------------------------
+    if viagens_dados:
 
-    df_viagens_total = pd.concat(viagens_dados, ignore_index=True)
+        df_viagens_total = pd.concat(viagens_dados, ignore_index=True)
 
-    meses_ordenados = df_viagens_total[["MES", "MES_SORT"]] \
-        .drop_duplicates() \
-        .sort_values("MES_SORT", ascending=False)
+        meses_ordenados = df_viagens_total[["MES", "MES_SORT"]] \
+            .drop_duplicates() \
+            .sort_values("MES_SORT", ascending=False)
 
-    for _, row in meses_ordenados.iterrows():
+        for _, row in meses_ordenados.iterrows():
 
-        mes = row["MES"]
-        df_mes = df_viagens_total[df_viagens_total["MES"] == mes]
+            mes = row["MES"]
+            df_mes = df_viagens_total[df_viagens_total["MES"] == mes]
 
-        st.header(f"Viagens — {mes}")
+            st.header(f"Viagens — {mes}")
 
-        # TOTAL DE VIAGENS
-        st.metric("Total de Viagens", len(df_mes))
+            # TOTAL DE VIAGENS
+            st.metric("Total de Viagens", len(df_mes))
 
-        # COLUNAS (já tratadas no process_excel)
-        col_obj_trac = "Quantos objetivos foram traçados antes da viagem? (apenas números)"
-        col_obj_cump = "Dos objetivos traçados, quantos foram cumpridos? (apenas números)"
-        col_obj_extra = "Houveram objetivos extras? (apenas números)"
-        col_obj_extra_cump = "Dos objetivos extras, quantos foram realizados? (apenas números)"
+            # COLUNAS (já tratadas no process_excel)
+            col_obj_trac = "Quantos objetivos foram traçados antes da viagem? (apenas números)"
+            col_obj_cump = "Dos objetivos traçados, quantos foram cumpridos? (apenas números)"
+            col_obj_extra = "Houveram objetivos extras? (apenas números)"
+            col_obj_extra_cump = "Dos objetivos extras, quantos foram realizados? (apenas números)"
 
-        # MÉTRICAS
-        st.metric("Objetivos Traçados (total)", int(df_mes[col_obj_trac].sum()))
-        st.metric("Objetivos Cumpridos (total)", int(df_mes[col_obj_cump].sum()))
-        st.metric("Objetivos Extras (total)", int(df_mes[col_obj_extra].sum()))
-        st.metric("Objetivos Extras Cumpridos (total)", int(df_mes[col_obj_extra_cump].sum()))
+            # MÉTRICAS
+            st.metric("Objetivos Traçados (total)", int(df_mes[col_obj_trac].sum()))
+            st.metric("Objetivos Cumpridos (total)", int(df_mes[col_obj_cump].sum()))
+            st.metric("Objetivos Extras (total)", int(df_mes[col_obj_extra].sum()))
+            st.metric("Objetivos Extras Cumpridos (total)", int(df_mes[col_obj_extra_cump].sum()))
 
 else:
     st.info("Aguardando envio dos relatórios.")
