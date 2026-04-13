@@ -1,6 +1,3 @@
 streamlit
 pandas
-python-docx
-plotly
 openpyxl
-lxml
