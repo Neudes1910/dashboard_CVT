@@ -20,33 +20,30 @@ def get_base64(file):
     return base64.b64encode(data).decode()
 
 def set_background(png_file):
-    bin_str = get_base64(png_file)
-    page_bg = f"""
-    <style>
-    .stApp {{
-        background: linear-gradient(
-            rgba(0,0,0,0),
-            rgba(0,0,0,0)
-        ),
-        url("data:image/png;base64,{bin_str}");
-        background-size: 250px;
-        background-position: calc(100% - 40px) 60px;
-        background-attachment: fixed;
-        background-repeat: no-repeat;
-    }}
-    </style>
-    """
-    st.markdown(page_bg, unsafe_allow_html=True)
+    try:
+        bin_str = get_base64(png_file)
+        page_bg = f"""
+        <style>
+        .stApp {{
+            background: url("data:image/png;base64,{bin_str}");
+            background-size: 250px;
+            background-position: calc(100% - 40px) 60px;
+            background-repeat: no-repeat;
+        }}
+        </style>
+        """
+        st.markdown(page_bg, unsafe_allow_html=True)
+    except Exception:
+        st.warning("Background não carregado.")
 
-# ---------------------------------------------------------
-# DEFINA A IMAGEM DE FUNDO AQUI
-# ---------------------------------------------------------
 set_background("background.png")
 
 st.title("Analisador Automático de Relatórios - CVT")
 
+st.write("Checkpoint 1 - App iniciado")
+
 # ---------------------------------------------------------
-# Upload de arquivos
+# Upload
 # ---------------------------------------------------------
 uploaded_files = st.file_uploader(
     "Envie os relatórios Word ou Excel",
@@ -57,7 +54,7 @@ uploaded_files = st.file_uploader(
 NAMESPACE = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
 
 # ---------------------------------------------------------
-# Funções para Word
+# Funções Word
 # ---------------------------------------------------------
 def extract_text_and_tables(file):
     text_content = []
@@ -92,29 +89,18 @@ def extract_product(tables):
     for table in tables:
         for row in table:
             if len(row) >= 2:
-                chave = str(row[0]).strip().lower()
-                if chave.startswith("produto"):
-                    produto = str(row[1]).strip()
-                    return re.sub(r"\s+", " ", produto)
+                if str(row[0]).lower().startswith("produto"):
+                    return str(row[1]).strip()
     return "Produto não identificado"
 
 
 def extrair_mes_do_arquivo(file):
-    filename = file.name
-    padrao = r'(\d{1,2})[._-](\d{1,2})(?:[._-](\d{2,4}))?'
-    match = re.search(padrao, filename)
-
+    match = re.search(r'(\d{1,2})[._-](\d{1,2})(?:[._-](\d{2,4}))?', file.name)
     if match:
-        dia, mes, ano = match.groups()
+        _, mes, ano = match.groups()
         mes = mes.zfill(2)
-
-        if ano is None:
-            ano = "2026"
-        elif len(ano) == 2:
-            ano = "20" + ano
-
+        ano = "2026" if not ano else ("20" + ano if len(ano) == 2 else ano)
         return f"{mes}/{ano}"
-
     return "Não identificado"
 
 
@@ -135,94 +121,50 @@ def find_downtime_table(tables):
 
 
 def converter_horas(valor):
-    if valor is None:
-        return 0
-    match = re.search(r'(\d+[.,]?\d*)', str(valor).lower())
-    if match:
-        return int(float(match.group(1).replace(",", ".")))
-    return 0
+    match = re.search(r'(\d+[.,]?\d*)', str(valor))
+    return int(float(match.group(1).replace(",", "."))) if match else 0
 
 # ---------------------------------------------------------
-# Função para Excel
+# Excel
 # ---------------------------------------------------------
 def process_excel(file):
     df = pd.read_excel(file, engine="openpyxl")
     df.columns = df.columns.str.strip()
 
     if "Data de ida (poderá ser uma data futura):" in df.columns:
-        df["Data de ida"] = pd.to_datetime(
-            df["Data de ida (poderá ser uma data futura):"],
-            errors="coerce"
-        )
+        df["Data de ida"] = pd.to_datetime(df.iloc[:, 0], errors="coerce")
         df["MES"] = df["Data de ida"].dt.strftime("%m/%Y").fillna("Não identificado")
     else:
         df["MES"] = "Não identificado"
 
-    objetivos = [
+    for col in [
         "Quantos objetivos foram traçados antes da viagem? (apenas números)",
         "Dos objetivos traçados, quantos foram cumpridos? (apenas números)",
         "Houveram objetivos extras? (apenas números)",
         "Dos objetivos extras, quantos foram realizados? (apenas números)"
-    ]
-
-    for col in objetivos:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
-        else:
-            df[col] = 0
+    ]:
+        df[col] = pd.to_numeric(df.get(col, 0), errors="coerce").fillna(0)
 
     return df
 
 # ---------------------------------------------------------
-# Processamento principal
+# Processamento
 # ---------------------------------------------------------
 if uploaded_files:
 
-    ocorrencias = []
-    horas_registros = []
+    st.write("Checkpoint 2 - Arquivos carregados")
+
     viagens_dados = []
 
     for file in uploaded_files:
         try:
+            st.write(f"Processando: {file.name}")
 
             if file.name.endswith(("docx", "docm", "dotm")):
-
                 text, tables = extract_text_and_tables(file)
-                produto = extract_product(tables)
-                mes_relatorio = extrair_mes_do_arquivo(file)
-
-                occ_table = find_occurrence_table(tables)
-
-                if occ_table:
-                    df_occ = pd.DataFrame(occ_table[1:], columns=occ_table[0])
-                    df_occ["PRODUTO"] = produto
-                    df_occ["MES"] = mes_relatorio
-                    df_occ["MES_SORT"] = pd.to_datetime(
-                        "01/" + df_occ["MES"],
-                        format="%d/%m/%Y",
-                        errors="coerce"
-                    )
-                    ocorrencias.append(df_occ)
-
-                downtime_table = find_downtime_table(tables)
-
-                if downtime_table:
-                    df_down = pd.DataFrame(downtime_table[1:], columns=downtime_table[0])
-                    df_down["PRODUTO"] = produto
-                    df_down["MES"] = mes_relatorio
-                    df_down["MES_SORT"] = pd.to_datetime(
-                        "01/" + df_down["MES"],
-                        format="%d/%m/%Y",
-                        errors="coerce"
-                    )
-
-                    col_tempo = next(c for c in df_down.columns if "TEMPO" in c.upper())
-                    df_down["HORAS"] = df_down[col_tempo].apply(converter_horas)
-
-                    horas_registros.append(df_down)
+                st.write(f"Tabelas encontradas: {len(tables)}")
 
             elif file.name.endswith("xlsx"):
-
                 df_viagens = process_excel(file)
                 df_viagens["MES_SORT"] = pd.to_datetime(
                     "01/" + df_viagens["MES"],
@@ -231,21 +173,34 @@ if uploaded_files:
                 )
                 viagens_dados.append(df_viagens)
 
-        except Exception as e:
-            st.warning(f"Erro ao processar {file.name}: {e}")
+        except Exception:
+            st.error(f"Erro ao processar {file.name}")
+            st.text(traceback.format_exc())
 
     # ---------------------------------------------------------
-    # VIAGENS POR MÊS
+    # VIAGENS
     # ---------------------------------------------------------
     if viagens_dados:
 
-        df_viagens_total = pd.concat(viagens_dados, ignore_index=True)
+        st.write("Checkpoint 3 - Iniciando concat")
 
-        meses_ordenados = (
-            df_viagens_total[["MES", "MES_SORT"]]
-            .drop_duplicates()
-            .sort_values("MES_SORT", ascending=False)
-        )
+        try:
+            df_viagens_total = pd.concat(viagens_dados, ignore_index=True)
+        except Exception:
+            st.error("Erro no concat")
+            st.text(traceback.format_exc())
+            st.stop()
+
+        try:
+            meses_ordenados = (
+                df_viagens_total[["MES", "MES_SORT"]]
+                .drop_duplicates()
+                .sort_values("MES_SORT", ascending=False)
+            )
+        except Exception:
+            st.error("Erro ao ordenar meses")
+            st.text(traceback.format_exc())
+            st.stop()
 
         for _, row in meses_ordenados.iterrows():
 
@@ -253,18 +208,14 @@ if uploaded_files:
             df_mes = df_viagens_total[df_viagens_total["MES"] == mes]
 
             st.header(f"Viagens — {mes}")
-
-            total_viagens = len(df_mes)
-            st.metric("Total de Viagens", total_viagens)
+            st.metric("Total de Viagens", len(df_mes))
 
             col_projeto = "Qual projeto foi visitado?"
 
             if col_projeto in df_mes.columns:
 
-                df_mes[col_projeto] = df_mes[col_projeto].astype(str).str.strip()
-
                 df_filtrado = df_mes[
-                    ~df_mes[col_projeto].str.lower().isin(
+                    ~df_mes[col_projeto].astype(str).str.lower().isin(
                         ["nan", "não identificado", "escolha um item"]
                     )
                 ]
@@ -273,27 +224,18 @@ if uploaded_files:
                     df_filtrado.groupby(col_projeto)
                     .size()
                     .reset_index(name="TOTAL VIAGENS")
-                    .sort_values("TOTAL VIAGENS", ascending=False)
                 )
 
-                st.subheader("Viagens por Projeto")
+                st.dataframe(viagens_projeto, use_container_width=True)
 
-                st.dataframe(
-                    viagens_projeto.style.format({"TOTAL VIAGENS": "{:d}"})
-                    .set_properties(**{"font-size": "16px"}),
-                    use_container_width=True
-                )
+            # MÉTRICAS SEGURAS
+            def safe_sum(df, col):
+                return int(pd.to_numeric(df.get(col, 0), errors="coerce").fillna(0).sum())
 
-            # MÉTRICAS
-            col_obj_trac = "Quantos objetivos foram traçados antes da viagem? (apenas números)"
-            col_obj_cump = "Dos objetivos traçados, quantos foram cumpridos? (apenas números)"
-            col_obj_extra = "Houveram objetivos extras? (apenas números)"
-            col_obj_extra_cump = "Dos objetivos extras, quantos foram realizados? (apenas números)"
-
-            st.metric("Objetivos Traçados (total)", int(df_mes[col_obj_trac].sum()))
-            st.metric("Objetivos Cumpridos (total)", int(df_mes[col_obj_cump].sum()))
-            st.metric("Objetivos Extras (total)", int(df_mes[col_obj_extra].sum()))
-            st.metric("Objetivos Extras Cumpridos (total)", int(df_mes[col_obj_extra_cump].sum()))
+            st.metric("Objetivos Traçados", safe_sum(df_mes, "Quantos objetivos foram traçados antes da viagem? (apenas números)"))
+            st.metric("Objetivos Cumpridos", safe_sum(df_mes, "Dos objetivos traçados, quantos foram cumpridos? (apenas números)"))
+            st.metric("Objetivos Extras", safe_sum(df_mes, "Houveram objetivos extras? (apenas números)"))
+            st.metric("Extras Cumpridos", safe_sum(df_mes, "Dos objetivos extras, quantos foram realizados? (apenas números)"))
 
 else:
     st.info("Aguardando envio dos relatórios.")
