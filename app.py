@@ -5,7 +5,6 @@ import pandas as pd
 import re
 import base64
 import traceback
-from docx import Document
 
 # ---------------------------------------------------------
 # Configurações da página
@@ -50,22 +49,51 @@ uploaded_files = st.file_uploader(
     accept_multiple_files=True
 )
 
+NAMESPACE = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
+
 # ---------------------------------------------------------
-# WORD (NOVO MÉTODO ROBUSTO)
+# WORD (XML ROBUSTO)
 # ---------------------------------------------------------
 def extract_text_and_tables(file):
+    text_content = []
+    tables = []
+
     try:
-        doc = Document(file)
+        with zipfile.ZipFile(file) as doc:
 
-        text_content = [p.text for p in doc.paragraphs if p.text]
+            if "word/document.xml" not in doc.namelist():
+                return "", []
 
-        tables = []
-        for table in doc.tables:
+            xml_content = doc.read("word/document.xml")
+
+        root = ET.fromstring(xml_content)
+        body = root.find('w:body', NAMESPACE)
+
+        if body is None:
+            return "", []
+
+        # TEXTO
+        for t in body.findall('.//w:t', NAMESPACE):
+            if t.text:
+                text_content.append(t.text)
+
+        # TABELAS
+        for tbl in body.findall('.//w:tbl', NAMESPACE):
             table_data = []
-            for row in table.rows:
-                cells = [cell.text.strip() for cell in row.cells]
-                table_data.append(cells)
-            if table_data:
+
+            for row in tbl.findall('.//w:tr', NAMESPACE):
+                cells = []
+
+                for cell in row.findall('.//w:tc', NAMESPACE):
+                    texts = [
+                        t.text for t in cell.findall('.//w:t', NAMESPACE) if t.text
+                    ]
+                    cells.append(" ".join(texts).strip())
+
+                if any(cells):
+                    table_data.append(cells)
+
+            if len(table_data) > 1:
                 tables.append(table_data)
 
         return " ".join(text_content), tables
@@ -73,6 +101,9 @@ def extract_text_and_tables(file):
     except Exception:
         return "", []
 
+# ---------------------------------------------------------
+# EXTRAÇÕES
+# ---------------------------------------------------------
 def extract_product(tables):
     for table in tables:
         for row in table:
@@ -170,18 +201,24 @@ if uploaded_files:
                 text, tables = extract_text_and_tables(file)
 
                 if not tables:
-                    st.warning(f"{file.name} não contém tabelas válidas.")
-                    continue
+                    st.warning(f"{file.name}: nenhuma tabela detectada")
 
                 produto = extract_product(tables)
                 mes_relatorio = extrair_mes_do_arquivo(file)
+
+                # DEBUG opcional
+                st.write(f"{file.name} -> {len(tables)} tabelas")
 
                 occ_table = find_occurrence_table(tables)
                 if occ_table:
                     df_occ = pd.DataFrame(occ_table[1:], columns=occ_table[0])
                     df_occ["PRODUTO"] = produto
                     df_occ["MES"] = mes_relatorio
-                    df_occ["MES_SORT"] = pd.to_datetime("01/" + df_occ["MES"], format="%d/%m/%Y", errors="coerce")
+                    df_occ["MES_SORT"] = pd.to_datetime(
+                        "01/" + df_occ["MES"],
+                        format="%d/%m/%Y",
+                        errors="coerce"
+                    )
                     ocorrencias.append(df_occ)
 
                 downtime_table = find_downtime_table(tables)
@@ -189,9 +226,16 @@ if uploaded_files:
                     df_down = pd.DataFrame(downtime_table[1:], columns=downtime_table[0])
                     df_down["PRODUTO"] = produto
                     df_down["MES"] = mes_relatorio
-                    df_down["MES_SORT"] = pd.to_datetime("01/" + df_down["MES"], format="%d/%m/%Y", errors="coerce")
+                    df_down["MES_SORT"] = pd.to_datetime(
+                        "01/" + df_down["MES"],
+                        format="%d/%m/%Y",
+                        errors="coerce"
+                    )
 
-                    col_tempo = next((c for c in df_down.columns if "TEMPO" in c.upper()), None)
+                    col_tempo = next(
+                        (c for c in df_down.columns if "TEMPO" in c.upper()),
+                        None
+                    )
 
                     if col_tempo:
                         df_down["HORAS"] = df_down[col_tempo].apply(converter_horas)
@@ -204,7 +248,11 @@ if uploaded_files:
             elif file.name.endswith("xlsx"):
 
                 df_viagens = process_excel(file)
-                df_viagens["MES_SORT"] = pd.to_datetime("01/" + df_viagens["MES"], format="%d/%m/%Y", errors="coerce")
+                df_viagens["MES_SORT"] = pd.to_datetime(
+                    "01/" + df_viagens["MES"],
+                    format="%d/%m/%Y",
+                    errors="coerce"
+                )
                 viagens_dados.append(df_viagens)
 
         except Exception:
@@ -230,7 +278,6 @@ if uploaded_files:
             df_mes = df_viagens_total[df_viagens_total["MES"] == mes]
 
             st.header(f"Viagens — {mes}")
-
             st.metric("Total de Viagens", len(df_mes))
 
             col_projeto = "Qual projeto foi visitado?"
