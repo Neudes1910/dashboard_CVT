@@ -200,7 +200,7 @@ if uploaded_files:
 
             df_filtrado = df_occ_total[
                 ~df_occ_total[col_natureza].astype(str).str.strip().str.lower().isin(
-                    ["nan", "não identificado", "escolha um item."]
+                    ["nan", "não identificado", "escolha um item.","escolher um item."]
                 )
             ]
 
