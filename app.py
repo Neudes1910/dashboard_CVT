@@ -160,7 +160,6 @@ if uploaded_files:
 
     for file in uploaded_files:
         try:
-            st.write(f"Processando: {file.name}")
 
             if file.name.endswith(("docx", "docm", "dotm")):
 
