@@ -200,84 +200,7 @@ if uploaded_files:
             st.warning(f"Erro ao processar {file.name}: {e}")
 
     # ---------------------------------------------------------
-    # OCORRÊNCIAS
-    # ---------------------------------------------------------
-    if ocorrencias:
-
-        df_total = pd.concat(ocorrencias, ignore_index=True)
-        natureza_col = [c for c in df_total.columns if "NATUREZA" in c.upper()][0]
-
-        df_total = df_total[
-            ~df_total[natureza_col].astype(str).str.lower().isin(["escolha um item", "escolher um item."])
-        ]
-
-        meses_ordenados = df_total[["MES", "MES_SORT"]].drop_duplicates().sort_values("MES_SORT", ascending=False)
-
-        for _, row in meses_ordenados.iterrows():
-
-            mes = row["MES"]
-            df_mes = df_total[df_total["MES"] == mes]
-
-            st.header(f"Mês: {mes}")
-
-            resumo = (
-                df_mes.groupby(["PRODUTO", natureza_col])
-                .size()
-                .reset_index(name="TOTAL OCORRÊNCIAS")
-            )
-
-            st.dataframe(resumo, use_container_width=True)
-
-    # ---------------------------------------------------------
-    # HORAS
-    # ---------------------------------------------------------
-    if horas_registros:
-
-        df_horas = pd.concat(horas_registros, ignore_index=True)
-
-        col_nat = next(c for c in df_horas.columns if "NATUREZA" in c.upper())
-        col_equip = next(c for c in df_horas.columns if "QUAL EQUIPAMENTO?" in c.upper())
-
-        df_horas = df_horas[
-            ~df_horas[col_nat].astype(str).str.lower().isin(["escolha um item", "escolher um item."])
-        ]
-
-        meses_ordenados = df_horas[["MES", "MES_SORT"]].drop_duplicates().sort_values("MES_SORT", ascending=False)
-
-        for _, row in meses_ordenados.iterrows():
-
-            mes = row["MES"]
-            df_mes = df_horas[df_horas["MES"] == mes]
-
-            st.header(f"Horas — {mes}")
-
-            # TOTAL
-            st.metric("Total de Horas", int(df_mes["HORAS"].sum()))
-
-            # --------------------------------------------
-            # LISTAGEM DETALHADA (o que você pediu)
-            # --------------------------------------------
-            df_detalhado = df_mes[[col_equip, "HORAS", "PRODUTO"]].copy()
-
-            df_detalhado = df_detalhado[
-                ~df_detalhado[col_equip].astype(str).str.lower().isin(
-                    ["nan", "não identificado", "escolha um item."]
-                )
-            ]
-
-            df_detalhado["HORAS"] = df_detalhado["HORAS"].astype(int)
-
-            st.subheader("Detalhamento de Indisponibilidade")
-
-            st.dataframe(
-                df_detalhado.rename(columns={
-                    col_equip: "EQUIPAMENTO",
-                    "HORAS": "TEMPO (h)"
-                }),
-                use_container_width=True
-            )
-    # ---------------------------------------------------------    
-    # VIAGENS
+    # VIAGENS (CORRIGIDO)
     # ---------------------------------------------------------
     if viagens_dados:
 
@@ -288,77 +211,57 @@ if uploaded_files:
             .sort_values("MES_SORT", ascending=False)
 
         for _, row in meses_ordenados.iterrows():
-    
+
             mes = row["MES"]
             df_mes = df_viagens_total[df_viagens_total["MES"] == mes]
 
             st.header(f"Viagens — {mes}")
-# ---------------------------------------------------------    
-# VIAGENS
-# ---------------------------------------------------------
-if viagens_dados:
 
-    df_viagens_total = pd.concat(viagens_dados, ignore_index=True)
+            # VIAGENS POR PROJETO
+            col_projeto = "Qual projeto foi visitado?"
 
-    meses_ordenados = df_viagens_total[["MES", "MES_SORT"]] \
-        .drop_duplicates() \
-        .sort_values("MES_SORT", ascending=False)
+            if col_projeto in df_mes.columns:
 
-    for _, row in meses_ordenados.iterrows():
+                df_proj = df_mes.copy()
 
-        mes = row["MES"]
-        df_mes = df_viagens_total[df_viagens_total["MES"] == mes]
+                df_proj[col_projeto] = (
+                    df_proj[col_projeto]
+                    .astype(str)
+                    .str.strip()
+                    .str.lower()
+                )
 
-        st.header(f"Viagens — {mes}")
+                df_proj = df_proj[
+                    ~df_proj[col_projeto].isin(["nan", "não identificado", "escolha um item"])
+                ]
 
-        # --------------------------------------------
-        # VIAGENS POR PROJETO
-        # --------------------------------------------
-        col_projeto = "Qual projeto foi visitado?"
+                viagens_projeto = (
+                    df_proj.groupby(col_projeto)
+                    .size()
+                    .reset_index(name="TOTAL VIAGENS")
+                    .sort_values("TOTAL VIAGENS", ascending=False)
+                )
 
-        if col_projeto in df_mes.columns:
+                st.subheader("Viagens por Projeto")
 
-            df_proj = df_mes.copy()
+                st.dataframe(
+                    viagens_projeto.rename(columns={col_projeto: "PROJETO"}),
+                    use_container_width=True
+                )
 
-            df_proj[col_projeto] = (
-                df_proj[col_projeto]
-                .astype(str)
-                .str.strip()
-                .str.lower()
-            )
+            # TOTAL
+            st.metric("Total de Viagens", len(df_mes))
 
-            df_proj = df_proj[
-                ~df_proj[col_projeto].isin(["nan", "não identificado", "escolha um item"])
-            ]
+            # MÉTRICAS
+            col_obj_trac = "Quantos objetivos foram traçados antes da viagem? (apenas números)"
+            col_obj_cump = "Dos objetivos traçados, quantos foram cumpridos? (apenas números)"
+            col_obj_extra = "Houveram objetivos extras? (apenas números)"
+            col_obj_extra_cump = "Dos objetivos extras, quantos foram realizados? (apenas números)"
 
-            viagens_projeto = (
-                df_proj.groupby(col_projeto)
-                .size()
-                .reset_index(name="TOTAL VIAGENS")
-                .sort_values("TOTAL VIAGENS", ascending=False)
-            )
-
-            st.subheader("Viagens por Projeto")
-
-            st.dataframe(
-                viagens_projeto.rename(columns={col_projeto: "PROJETO"}),
-                use_container_width=True
-            )
-
-        # TOTAL DE VIAGENS
-        st.metric("Total de Viagens", len(df_mes))
-
-        # COLUNAS (já tratadas no process_excel)
-        col_obj_trac = "Quantos objetivos foram traçados antes da viagem? (apenas números)"
-        col_obj_cump = "Dos objetivos traçados, quantos foram cumpridos? (apenas números)"
-        col_obj_extra = "Houveram objetivos extras? (apenas números)"
-        col_obj_extra_cump = "Dos objetivos extras, quantos foram realizados? (apenas números)"
-
-        # MÉTRICAS
-        st.metric("Objetivos Traçados (total)", int(df_mes[col_obj_trac].sum()))
-        st.metric("Objetivos Cumpridos (total)", int(df_mes[col_obj_cump].sum()))
-        st.metric("Objetivos Extras (total)", int(df_mes[col_obj_extra].sum()))
-        st.metric("Objetivos Extras Cumpridos (total)", int(df_mes[col_obj_extra_cump].sum()))
+            st.metric("Objetivos Traçados (total)", int(df_mes[col_obj_trac].sum()))
+            st.metric("Objetivos Cumpridos (total)", int(df_mes[col_obj_cump].sum()))
+            st.metric("Objetivos Extras (total)", int(df_mes[col_obj_extra].sum()))
+            st.metric("Objetivos Extras Cumpridos (total)", int(df_mes[col_obj_extra_cump].sum()))
 
 else:
     st.info("Aguardando envio dos relatórios.")
