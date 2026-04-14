@@ -337,17 +337,15 @@ if uploaded_files:
             )
 
     # ---------------------------------------------------------
-    # VIAGENS
+    # VIAGENS (CORRIGIDO)
     # ---------------------------------------------------------
     if viagens_dados:
 
         df_viagens_total = pd.concat(viagens_dados, ignore_index=True)
 
-        meses_ordenados = (
-            df_viagens_total[["MES", "MES_SORT"]]
-            .drop_duplicates()
+        meses_ordenados = df_viagens_total[["MES", "MES_SORT"]] \
+            .drop_duplicates() \
             .sort_values("MES_SORT", ascending=False)
-        )
 
         for _, row in meses_ordenados.iterrows():
 
@@ -356,8 +354,42 @@ if uploaded_files:
 
             st.header(f"Viagens — {mes}")
 
+            # VIAGENS POR PROJETO
+            col_projeto = "Qual projeto foi visitado?"
+
+            if col_projeto in df_mes.columns:
+
+                df_proj = df_mes.copy()
+
+                df_proj[col_projeto] = (
+                    df_proj[col_projeto]
+                    .astype(str)
+                    .str.strip()
+                    .str.lower()
+                )
+
+                df_proj = df_proj[
+                    ~df_proj[col_projeto].isin(["nan", "não identificado", "escolha um item"])
+                ]
+
+                viagens_projeto = (
+                    df_proj.groupby(col_projeto)
+                    .size()
+                    .reset_index(name="TOTAL VIAGENS")
+                    .sort_values("TOTAL VIAGENS", ascending=False)
+                )
+
+                st.subheader("Viagens por Projeto")
+
+                st.dataframe(
+                    viagens_projeto.rename(columns={col_projeto: "PROJETO"}),
+                    use_container_width=True
+                )
+
+            # TOTAL
             st.metric("Total de Viagens", len(df_mes))
 
+            # MÉTRICAS
             col_obj_trac = "Quantos objetivos foram traçados antes da viagem? (apenas números)"
             col_obj_cump = "Dos objetivos traçados, quantos foram cumpridos? (apenas números)"
             col_obj_extra = "Houveram objetivos extras? (apenas números)"
