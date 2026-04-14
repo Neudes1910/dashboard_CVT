@@ -293,53 +293,72 @@ if uploaded_files:
             df_mes = df_viagens_total[df_viagens_total["MES"] == mes]
 
             st.header(f"Viagens — {mes}")
-    # --------------------------------------------
-    # VIAGENS POR PROJETO
-    # --------------------------------------------
-    col_projeto = "Qual projeto foi visitado?"
+# ---------------------------------------------------------    
+# VIAGENS
+# ---------------------------------------------------------
+if viagens_dados:
 
-    if col_projeto in df_mes.columns:
+    df_viagens_total = pd.concat(viagens_dados, ignore_index=True)
 
-        df_proj = df_mes.copy()
+    meses_ordenados = df_viagens_total[["MES", "MES_SORT"]] \
+        .drop_duplicates() \
+        .sort_values("MES_SORT", ascending=False)
 
-        df_proj[col_projeto] = (
-            df_proj[col_projeto]
-            .astype(str)
-            .str.strip()
-            .str.lower()
-        )
+    for _, row in meses_ordenados.iterrows():
 
-        df_proj = df_proj[
-            ~df_proj[col_projeto].isin(["nan", "não identificado", "escolha um item"])
-        ]
+        mes = row["MES"]
+        df_mes = df_viagens_total[df_viagens_total["MES"] == mes]
 
-        viagens_projeto = (
-            df_proj.groupby(col_projeto)
-            .size()
-            .reset_index(name="TOTAL VIAGENS")
-            .sort_values("TOTAL VIAGENS", ascending=False)
-        )
+        st.header(f"Viagens — {mes}")
 
-        st.subheader("Viagens por Projeto")
+        # --------------------------------------------
+        # VIAGENS POR PROJETO
+        # --------------------------------------------
+        col_projeto = "Qual projeto foi visitado?"
 
-        st.dataframe(
-            viagens_projeto.rename(columns={col_projeto: "PROJETO"}),
-            use_container_width=True
-        )
-            # TOTAL DE VIAGENS
-            st.metric("Total de Viagens", len(df_mes))
+        if col_projeto in df_mes.columns:
 
-            # COLUNAS (já tratadas no process_excel)
-            col_obj_trac = "Quantos objetivos foram traçados antes da viagem? (apenas números)"
-            col_obj_cump = "Dos objetivos traçados, quantos foram cumpridos? (apenas números)"
-            col_obj_extra = "Houveram objetivos extras? (apenas números)"
-            col_obj_extra_cump = "Dos objetivos extras, quantos foram realizados? (apenas números)"
+            df_proj = df_mes.copy()
 
-            # MÉTRICAS
-            st.metric("Objetivos Traçados (total)", int(df_mes[col_obj_trac].sum()))
-            st.metric("Objetivos Cumpridos (total)", int(df_mes[col_obj_cump].sum()))
-            st.metric("Objetivos Extras (total)", int(df_mes[col_obj_extra].sum()))
-            st.metric("Objetivos Extras Cumpridos (total)", int(df_mes[col_obj_extra_cump].sum()))
+            df_proj[col_projeto] = (
+                df_proj[col_projeto]
+                .astype(str)
+                .str.strip()
+                .str.lower()
+            )
+
+            df_proj = df_proj[
+                ~df_proj[col_projeto].isin(["nan", "não identificado", "escolha um item"])
+            ]
+
+            viagens_projeto = (
+                df_proj.groupby(col_projeto)
+                .size()
+                .reset_index(name="TOTAL VIAGENS")
+                .sort_values("TOTAL VIAGENS", ascending=False)
+            )
+
+            st.subheader("Viagens por Projeto")
+
+            st.dataframe(
+                viagens_projeto.rename(columns={col_projeto: "PROJETO"}),
+                use_container_width=True
+            )
+
+        # TOTAL DE VIAGENS
+        st.metric("Total de Viagens", len(df_mes))
+
+        # COLUNAS (já tratadas no process_excel)
+        col_obj_trac = "Quantos objetivos foram traçados antes da viagem? (apenas números)"
+        col_obj_cump = "Dos objetivos traçados, quantos foram cumpridos? (apenas números)"
+        col_obj_extra = "Houveram objetivos extras? (apenas números)"
+        col_obj_extra_cump = "Dos objetivos extras, quantos foram realizados? (apenas números)"
+
+        # MÉTRICAS
+        st.metric("Objetivos Traçados (total)", int(df_mes[col_obj_trac].sum()))
+        st.metric("Objetivos Cumpridos (total)", int(df_mes[col_obj_cump].sum()))
+        st.metric("Objetivos Extras (total)", int(df_mes[col_obj_extra].sum()))
+        st.metric("Objetivos Extras Cumpridos (total)", int(df_mes[col_obj_extra_cump].sum()))
 
 else:
     st.info("Aguardando envio dos relatórios.")
