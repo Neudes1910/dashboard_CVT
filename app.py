@@ -228,7 +228,6 @@ if uploaded_files:
                     df_proj[col_projeto]
                     .astype(str)
                     .str.strip()
-                    .str.lower()
                 )
 
                 df_proj = df_proj[
